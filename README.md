@@ -88,7 +88,14 @@ The function returns *true* if writing succeeded and *false* if it failed.
 **IMPORTANT:** The sector data to be written must be in buffer[1..512] (**NOT** buffer[0..511])
 
 #### `bool ArduinoFDC.formatDisk()`
-Formats a floppy disk with a double density (DD) 720K format.
+Formats a floppy disk with a low-level double density (DD) 720K format.
+
+This function does **not** set up any file system on the disk. It only sets up the 
+low-level sector structure that allows reading and writing of sectors (and fills all
+sector data with 0xF6 bytes). In order to make the disk readable by DOS, Windows
+or other OSs a file system must be initialized. For DOS/Windows that means writing 
+certain data structures to sectors 1-9 on track 1 side 0. See the ArduinoFDC.ino 
+example sketch for how to do so.
 
 The function returns *false* if the "Track 0" signal or the "Index" signal from
 the floppy drive are not detected. Otherwise it always return *true*.
