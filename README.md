@@ -32,6 +32,7 @@ Arduino pin  | Floppy Drive pin | Function
 9            | 22               | Write Data
 10           | 24               | Write Enable
 11           | 26               | Track 0 (see note 2 below)
+GND          | 1,3,5...,25      | GND (just pick one)
 
 **Note 1:**
 If you are wiring directly to the male connector on the floppy drive then
