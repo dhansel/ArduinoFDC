@@ -117,3 +117,26 @@ Turns the disk drive motor off.
 
 #### `bool ArduinoFDC.motorRunning()`
 Returns *true* if the disk drive motor is currently running and *false* if not.
+
+##Troubleshooting
+
+By default the readSector, writeSector and formatDisk functions just return "false"
+when something is not right. To get some more information about the error you can
+un-comment the "#define DEBUG" line in the ArduinoFDC.cpp file. With that enabled
+the code will write error messages to the serial port.
+
+The following table shows possible causes for each error message. Pin numbers refer
+to pins on the Arduino.
+
+Message | Meaning | Possible causes
+--------|---------|----------------
+Not initialized | The ArduinoFDC.begin() function has not been called |
+Drive not ready | No data at all is received from the disk drive | - no disk in drive <br/> - pins MOTOR (2), SELECT (3) or READ (8) not properly connected
+No sync | Data is received but no sync mark can be found | - disk not formatted or not formatted as double density (DD)
+Header CRC error | The sector header checksum is incorrect | - bad disk or unknown format
+Unable to find header |  Sync marks are found but either no sector header or no header with the expected track/side/sector markings | - pins STEP (2), STEPDIR (3) or SIDE (6) not properly connected <br/> - bad disk or unknown format
+Unexpected record identifier | The data record was not started by a 0xFB byte as expected | - bad disk or unknown format
+Data CRC error | The sector data checksum is incorrect | - bad disk or unknown format
+Verify after write failed | When reading back data that was just written, the data did not match | - pins WRITEGATE (10) or WRITEDATA (9) not properly connected<br/> - bad disk
+No index hole signal | No index hole was detected with 1 second while the motor was on | - pins INDEX (7) or MOTOR (2) not properly connected
+No track0 signal | When trying to reset the read head to track 0, the TRACK0 signal was not seen, even after stepping more than 80 tracks. | - pins STEP (2), STEPDIR (3) or TRACK0 (11) not properly connected
