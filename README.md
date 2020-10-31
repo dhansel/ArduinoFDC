@@ -1,8 +1,6 @@
 # ArduinoFDC
-Library for using an Arduino UNO as a 3.5" double density floppy disk controller
 
-
-This is a small library containing low-level functions which enable an
+This is a small library providing low-level functions which enable an
 Arduino UNO (or any ATMega328P) to control a 3.5" floppy disk drive.
 It allows to read and write disks at the sector level as well as 
 formatting disks.
@@ -32,7 +30,7 @@ Reads data from a sector from the flopy disk. Always reads a full sector (512 by
 * The "track" parameter must be in range 0..79
 * The "side" parameter must either be 0 or 1
 * The "sector" paramter must be in range 1..9
-* The "buffer" parameter must be a pointer to a byte array of size (at least) 515.
+* The "buffer" parameter must be a pointer to a byte array of size (at least) 515 bytes.
 
 The function returns *true* if reading succeeded and *false* if it failed.
 
@@ -44,7 +42,7 @@ Writes data to a sector on the floppy disk. Always writes a full sector (512 byt
 * The "track" parameter must be in range 0..79
 * The "side" parameter must either be 0 or 1
 * The "sector" paramter must be in range 1..9
-* The "buffer" parameter must be a pointer to a byte array of size (at least) 515.
+* The "buffer" parameter must be a pointer to a byte array of size (at least) 515 bytes.
 * If the "verify" parameter is *true*, the data written will be read back and compared to what was written.
 If a difference is detected then the function will return *false*.
 If the "verify" parameter is *false* then no verification is done. The function may still return *false*
