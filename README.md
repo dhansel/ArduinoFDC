@@ -120,9 +120,9 @@ Returns *true* if the disk drive motor is currently running and *false* if not.
 
 ## Troubleshooting
 
-By default the readSector, writeSector and formatDisk functions just return "false"
+By default the `readSector`, `writeSector` and `formatDisk` functions just return *false*
 when something is not right. To get some more information about the error you can
-un-comment the "#define DEBUG" line in the ArduinoFDC.cpp file. With that enabled
+un-comment the `#define DEBUG` line in the ArduinoFDC.cpp file. With that enabled
 the code will write error messages to the serial port.
 
 The following table shows possible causes for each error message. Pin numbers refer
