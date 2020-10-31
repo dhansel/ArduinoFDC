@@ -29,7 +29,7 @@ Releases the pins initialized by ArduinoFDC.begin()
 #### `bool ArduinoFDC.readSector(byte track, byte side, byte sector, byte *buffer)`
 Reads data from a sector from the flopy disk. Always reads a full sector (512 bytes).
 
-* The "track" parameter must be in range 0..70
+* The "track" parameter must be in range 0..79
 * The "side" parameter must either be 0 or 1
 * The "sector" paramter must be in range 1..9
 * The "buffer" parameter must be a pointer to a byte array of size (at least) 515.
@@ -41,7 +41,7 @@ The function returns *true* if reading succeeded and *false* if it failed.
 #### `bool ArduinoFDC.writeSector(byte track, byte side, byte sector, byte *buffer, bool verify)`
 Writes data to a sector on the floppy disk. Always writes a full sector (512 bytes).
 
-* The "track" parameter must be in range 0..70
+* The "track" parameter must be in range 0..79
 * The "side" parameter must either be 0 or 1
 * The "sector" paramter must be in range 1..9
 * The "buffer" parameter must be a pointer to a byte array of size (at least) 515.
