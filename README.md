@@ -118,7 +118,7 @@ Turns the disk drive motor off.
 #### `bool ArduinoFDC.motorRunning()`
 Returns *true* if the disk drive motor is currently running and *false* if not.
 
-##Troubleshooting
+## Troubleshooting
 
 By default the readSector, writeSector and formatDisk functions just return "false"
 when something is not right. To get some more information about the error you can
