@@ -15,6 +15,11 @@ write to and read from it.
 The following table shows how to wire up the Arduino UNO pins to the 34-pin IDC
 connector on the 3.5" floppy drive. 
 
+The pin numbers are defined at the top of the ArduinoFDC.cpp file. Some of them can 
+easily be changed whereas others are hard-coded in the controller code. Refer to 
+the comments at the top of the ArduinoFDC.cpp file if you want to use different
+pin assignments.
+
 Arduino pin  | Floppy Drive pin | Function
 -------------|------------------|-------------------------
 2            | 20               | Head Step Pulse
@@ -30,9 +35,9 @@ Arduino pin  | Floppy Drive pin | Function
 
 **Note 1:**
 If you are wiring directly to the male connector on the floppy drive then
-use pins 14 and 12. If you have a floppy cable connected to the drive then
-use pins 10/16 if the drive is plugged into the cable in the "Drive A"
-position and pins 14/12 if the drive is plugged into the "Drive B" position.
+use pins 16 and 12. If you have a floppy cable connected to the drive then
+use pins 10 and 14 if the drive is plugged into the cable in the "Drive A"
+position and pins 16 and 12 if the drive is plugged into the "Drive B" position.
 For more information on why this is necessary, search the web for "Floppy
 cable twist".
 
@@ -49,10 +54,7 @@ After adding ArduinoFDC.h and ArduinoFDC.cpp to your Arduino sketch you
 can use the following functions:
 
 #### `void ArduinoFDC.begin()`
-Initializes the Arduino pins used by the controller. Those pins are defined
-at the top of the ArduinoFDC.cpp file. Some of them can easily be changed
-whereas others are hard-coded in the controller code. Refer to the comments
-at the top of the ArduinoFDC.cpp file if you want to change pin assignments.
+Initializes the Arduino pins used by the controller. 
 
 #### `void ArduinoFDC.end()`
 Releases the pins initialized by ArduinoFDC.begin()
