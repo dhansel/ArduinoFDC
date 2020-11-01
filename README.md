@@ -43,7 +43,7 @@ to the floppy drive, the A/B pins will be reversed (search the web
 for "Floppy drive twist" for more information).
 
 If you want to save two Arduino pins and are only planning to control
-one drive, you can comment out the `#define SINGLEDRIVE` in file
+one drive, you un-comment the `#define SINGLEDRIVE` line in file
 ArduinoFDC.cpp. In that case the controller only supports one drive
 and does not use Arduino pins 12 and 13.
 
@@ -188,7 +188,7 @@ won't write to it but the Arduino doesn't know because the "write protect" signa
 is not read (I tried to not use too many pins). If the DD/HD hole is open then
 the disk is identified HD and the drive quitely refuses to format it as DD.
 
-# | Code        | Meaning | Possible causes
+\# | Code        | Meaning | Possible causes
 --|-------------|---------|----------------
 0 | S_OK        | No error, the operation succeeded | 
 1 | S_NOTINIT   | The ArduinoFDC.begin() function has not been called |
