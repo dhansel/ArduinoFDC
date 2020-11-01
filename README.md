@@ -139,14 +139,16 @@ The following commands are supported:
 * `f [0/1]` <br/>
   Format the disk. If the *0/1* parameter is 1 then also initialize an empty DOS
   file system on the disk. The disk should be readable and writable on a DOS/Windows 
-  computer after doing so. If the *0/1* parameter is left out it defaults to 0.
+  computer after doing so. If the parameter is 0 then no filesystem is written. Sectors
+  on the disk will be readable/writable but the disk will not be recognized by DOS/Windows.
+  If the parameter is left out it defaults to 0.
 * `b` <br/>
   Show the current buffer content
 * `B [n]` <br/>
   Fill the buffer with value *n*. If *n* is left out then fill the buffer with
   bytes 0,1,2,...255,0,1,2,...255.
 * `m [0/1]` <br/>
-  Turn the drive motor on/off. If the *0/1* argument is left out it defaults to 0.
+  Turn the drive motor off/on. If the *0/1* argument is left out it defaults to 0.
 * `r` <br/>
   Read ALL sectors on the disk and show status Ok/Error for each one.
 * `w [0/1]` <br/>
