@@ -118,6 +118,42 @@ Turns the disk drive motor off.
 #### `bool ArduinoFDC.motorRunning()`
 Returns *true* if the disk drive motor is currently running and *false* if not.
 
+## Testing
+
+In addition to the `ArduinoFDC.h` and `ArduinoFDC.cpp` library files, a small sketch
+`ArduinoFDC.ino` is provided to demonstrate and test the library. The sketch provides
+a minimal user interface to interact with the library and read/write disks. It is easy
+to use with the Arduino serial monitor. Set the monitor to 115200 baud to connect.
+When connected, the sketch will show a command prompt. Enter your command in the
+serial monitor's input line and press *Enter* to execute the command.
+
+The following commands are supported:
+* `r track, sector[,side]` <br/>
+  Read the sector specified by track/sector/side, copy its contents to an internal 
+  buffer and show the buffer content. If the *side* parameter is left out it defaults
+  to zero.
+* `w track, sector[,side]` <br/>
+  Write the current buffer contents to the sector specified by track/sector/side
+  and verify the data after writing. Shows "Ok" or "Error" status after execution.
+  If the *side* parameter is left out it defaults to zero.
+* `f [0/1]` <br/>
+  Format the disk. If the *0/1* parameter is 1 then also initialize an empty DOS
+  file system on the disk. The disk should be readable and writable on a DOS/Windows 
+  computer after doing so. If the *0/1* parameter is left out it defaults to 0.
+* `b` <br/>
+  Show the current buffer content
+* `B [n]` <br/>
+  Fill the buffer with value *n*. If *n* is left out then fill the buffer with
+  bytes 0,1,2,...255,0,1,2,...255.
+* `m [0/1]` <br/>
+  Turn the drive motor on/off. If the *0/1* argument is left out it defaults to 0.
+* `r` <br/>
+  Read ALL sectors on the disk and show status Ok/Error for each one.
+* `w [0/1]` <br/>
+  Write the current buffer content to ALL sectors on the disk. If the *0/1* parameter
+  is 1 then  verify every sector after writing it (significantly slower).
+  If the *0/1* parameter is left out it defaults to 0.
+
 ## Troubleshooting
 
 By default the `readSector`, `writeSector` and `formatDisk` functions just return *false*
