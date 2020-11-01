@@ -24,23 +24,28 @@ Arduino pin  | Floppy Drive pin | Function
 -------------|------------------|-------------------------
 2            | 20               | Head Step Pulse
 3            | 18               | Head Step Direction
-4            | 10/16            | Motor Enable (see note 1 below)
-5            | 14/12            | Drive Select (see note 1 below)
+4            | 10               | Motor Enable A (see note 1 below)
+5            | 14               | Drive Select A (see note 1 below)
 6            | 32               | Side Select
-7            | 8 	              | Index (see note 2 below)
+7            | 8 	        | Index (see note 2 below)
 8            | 30               | Read Data (see note 2 below)
 9            | 22               | Write Data
 10           | 24               | Write Enable
 11           | 26               | Track 0 (see note 2 below)
+12           | 16               | Motor Enable B (see note 1 below)
+13           | 12               | Drive Select B (see note 1 below)
 GND          | 1,3,5,...,31,33  | GND (just pick one)
 
 **Note 1:**
-If you are wiring directly to the male connector on the floppy drive then
-use pins 16 and 12. If you have a floppy cable connected to the drive then
-use pins 10 and 14 if the drive is plugged into the cable in the "Drive A"
-position and pins 16 and 12 if the drive is plugged into the "Drive B" position.
-For more information on why this is necessary, search the web for "Floppy
-cable twist".
+The pin numbers for the SELECT/MOTOR signals assume you are wiring to
+the controller end of a floppy drive cable. If you are wiring directly
+to the floppy drive, the A/B pins will be reversed (search the web
+for "Floppy drive twist" for more information).
+
+If you want to save two Arduino pins and are only planning to control
+one drive, you can comment out the `#define SINGLEDRIVE` in file
+ArduinoFDC.cpp. In that case the controller only supports one drive
+and does not use Arduino pins 12 and 13.
 
 **Note 2:**
 It is **highly** recommended (but not entirely necessary) to add a 1k 
@@ -60,7 +65,11 @@ Initializes the Arduino pins used by the controller.
 #### `void ArduinoFDC.end()`
 Releases the pins initialized by ArduinoFDC.begin()
 
-#### `bool ArduinoFDC.readSector(byte track, byte side, byte sector, byte *buffer)`
+#### `void ArduinoFDC.selectDrive(byte drive)`
+Selects drive A (0) or B (1) to be used for subsequent calls to 
+readSector/writeSector/formatDisk. Calling `begin()` selects drive A.
+
+#### `byte ArduinoFDC.readSector(byte track, byte side, byte sector, byte *buffer)`
 Reads data from a sector from the flopy disk. Always reads a full sector (512 bytes).
 
 * The "track" parameter must be in range 0..79
@@ -68,11 +77,12 @@ Reads data from a sector from the flopy disk. Always reads a full sector (512 by
 * The "sector" paramter must be in range 1..9
 * The "buffer" parameter must be a pointer to a byte array of size (at least) 515 bytes.
 
-The function returns *true* if reading succeeded and *false* if it failed.
+The function returns 0 if reading succeeded. Otherwise an error code is returned
+(see Troubleshooting section below)
 
 **IMPORTANT:** On successful return, the sector data that was read will be in buffer[1..512] (**NOT** buffer[0..511])
 
-#### `bool ArduinoFDC.writeSector(byte track, byte side, byte sector, byte *buffer, bool verify)`
+#### `byte ArduinoFDC.writeSector(byte track, byte side, byte sector, byte *buffer, bool verify)`
 Writes data to a sector on the floppy disk. Always writes a full sector (512 bytes).
 
 * The "track" parameter must be in range 0..79
@@ -84,7 +94,8 @@ If a difference is detected then the function will return *false*.
 If the "verify" parameter is *false* then no verification is done. The function may still return *false*
 if the proper sector location on disk can not be found before writing.
 
-The function returns *true* if writing succeeded and *false* if it failed.
+The function returns 0 if writing succeeded. Otherwise an error code is returned
+(see Troubleshooting section below)
 
 **IMPORTANT:** The sector data to be written must be in buffer[1..512] (**NOT** buffer[0..511])
 
@@ -98,10 +109,11 @@ or other OSs a file system must be initialized. For DOS/Windows that means writi
 certain data structures to sectors 1-9 on track 1 side 0. See the ArduinoFDC.ino 
 example sketch for how to do so.
 
-The function returns *false* if the "Track 0" signal or the "Index" signal from
-the floppy drive are not detected. Otherwise it always return *true*.
-No verification of the formatting process is performed. You can use the `readSector`
-function to verify that data can be read properly.
+The function returns 0 if formatting succeeded. Otherwise an error code is returned
+(see Troubleshooting section below). Note that no verification of the formatted disk 
+is performed. The only possible error conditions are missing track 0 or index hole signals.
+You can use the `readSector`function to verify that data can be read properly
+after formatting.
 
 #### `void ArduinoFDC.motorOn()`
 Turns the disk drive motor on. 
@@ -148,33 +160,43 @@ The following commands are supported:
   Fill the buffer with value *n*. If *n* is left out then fill the buffer with
   bytes 0,1,2,...255,0,1,2,...255.
 * `m [0/1]` <br/>
-  Turn the drive motor off/on. If the *0/1* argument is left out it defaults to 0.
+  Turn the motor of the currently selected drive off/on. If the *0/1* parameter is left out 
+  then the current motor status is shown.
 * `r` <br/>
   Read ALL sectors on the disk and show status Ok/Error for each one.
 * `w [0/1]` <br/>
   Write the current buffer content to ALL sectors on the disk. If the *0/1* parameter
   is 1 then  verify every sector after writing it (significantly slower).
   If the *0/1* parameter is left out it defaults to 0.
+* `s [0/1]` <br/>
+  Select drive A (0) or B (1). If the *0/1* parameter is left out then the currently
+  selected drive is shown.
+* `c [0/1]` <br/>
+  Copy content of drive A to drive B. If the *0/1* parameter is 1 then verify the
+  written data (much slower). If the parameter is left out it defaults to 0.
 
 ## Troubleshooting
 
-By default the `readSector`, `writeSector` and `formatDisk` functions just return *false*
-when something is not right. To get some more information about the error you can
-un-comment the `#define DEBUG` line in the ArduinoFDC.cpp file. With that enabled
-the code will write error messages to the serial port.
-
-The following table shows possible causes for each error message. Pin numbers refer
+The following table lists the error codes returned by the `readSector`, `writeSector` 
+and `formatDisk` functions including possible causes for each error, Pin numbers refer
 to pins on the Arduino.
 
-Message | Meaning | Possible causes
---------|---------|----------------
-Not initialized | The ArduinoFDC.begin() function has not been called |
-Drive not ready | No data at all is received from the disk drive | - no disk in drive <br/> - pins MOTOR (4), SELECT (5) or READ (8) not properly connected
-No sync | Data is received but no sync mark can be found | - disk not formatted or not formatted as double density (DD)
-Header CRC error | The sector header checksum is incorrect | - bad disk or unknown format
-Unable to find header |  Sync marks are found but either no sector header or no header with the expected track/side/sector markings | - pins STEP (2), STEPDIR (3) or SIDE (6) not properly connected <br/> - bad disk or unknown format
-Unexpected record identifier | The data record was not started by a 0xFB byte as expected | - bad disk or unknown format
-Data CRC error | The sector data checksum is incorrect | - bad disk or unknown format
-Verify after write failed | When reading back data that was just written, the data did not match | - pins WRITEGATE (10) or WRITEDATA (9) not properly connected<br/> - bad disk
-No index hole signal | No index hole was detected with 1 second while the motor was on | - pins INDEX (7), MOTOR (4) or SELECT (5) not properly connected
-No track0 signal | When trying to reset the read head to track 0, the TRACK0 signal was not seen, even after stepping more than 80 tracks. | - pins STEP (2), STEPDIR (3), SELECT (5) or TRACK0 (11) not properly connected
+If you have trouble reading/writing a freshly formatted disk make sure that *both*
+holes on the corners of the disk itself are *covered*. One is "write protect", the
+other is the disk type (DD/HD). If the disk is write protected then some drives
+won't write to it but the Arduino doesn't know because the "write protect" signal
+is not read (I tried to not use too many pins). If the DD/HD hole is open then
+the disk is identified HD and the drive quitely refuses to format it as DD.
+
+# | Code        | Meaning | Possible causes
+--|-------------|---------|----------------
+0 | S_OK        | No error, the operation succeeded | 
+1 | S_NOTINIT   | The ArduinoFDC.begin() function has not been called |
+2 | S_NOTREADY  | No data at all is received from the disk drive | - no disk in drive <br/> - drive does not have power <br/> - pins MOTOR (4/12), SELECT (5/13) or READ (8) not properly connected
+3 | S_NOSYNC    | Data is received but no sync mark can be found | - disk not formatted or not formatted as double density (DD)
+4 | S_NOHEADER  | Sync marks are found but either no sector header or no header with the expected track/side/sector markings | - pins STEP (2), STEPDIR (3) or SIDE (6) not properly connected <br/> - bad disk or unknown format
+5 | S_INVALIDID | The data record was not started by a 0xFB byte as expected | - bad disk or unknown format
+6 | S_CRC       | The sector data checksum is incorrect | - bad disk or unknown format
+7 | S_NOINDEX   | No index hole was detected within 1 second with the motor running | - pins INDEX (7), MOTOR (4/12) or SELECT (5/13) not properly connected
+8 | S_NOTRACK0  | When trying to move the read head to track 0, the TRACK0 signal was not seen, even after stepping more than 80 tracks. | - pins STEP (2), STEPDIR (3), SELECT (5/13) or TRACK0 (11) not properly connected
+9 | S_VERIFY    | When reading back data that was just written, the data did not match | - pins WRITEGATE (10) or WRITEDATA (9) not properly connected<br/> - bad disk

@@ -25,22 +25,26 @@
 // input/output pin definitions
 #define PIN_STEP       2
 #define PIN_STEPDIR    3
-#define PIN_MOTOR      4
-#define PIN_SELECT     5
+#define PIN_MOTORA     4
+#define PIN_SELECTA    5
 #define PIN_SIDE       6
 #define PIN_INDEX      7  // hardwired to pin 7 (PD7) in function format_track()
 #define PIN_READDATA   8  // must be pin 8 (ICP1 for timer1)
 #define PIN_WRITEDATA  9  // must be pin 9 (OCP1 for timer1)
 #define PIN_WRITEGATE 10  // hardwired to pin 10 (PB2) in functions writedata() and format_track()
 #define PIN_TRACK0    11
+#define PIN_MOTORB    12  // only used if SINGLEDRIVE is NOT defined below
+#define PIN_SELECTB   13  // only used if SINGLEDRIVE is NOT defined below
 
 
 // convert microseconds to timer ticks (prescaler 1 => timer is running at CPU clock speed)
 #define US2TICKS(n) ((n)*(F_CPU/1000000))
 
-// un-commenting this will write more detailed error information to Serial
-#define DEBUG
+// un-commenting this will avoid using Arduino pins 12+13 but only support one drive
+//#define SINGLEDRIVE
 
+// un-commenting this will write more detailed error information to Serial
+//#define DEBUG
 
 ArduinoFDCClass ArduinoFDC;
 
@@ -504,7 +508,7 @@ static void write_data(byte *ptr, int n)
 }
 
 
-static bool format_track(byte track, byte side)
+static byte format_track(byte track, byte side)
 {
   // format track:
   // writing 95 + 1 + 65 + (7 + 37 + 515 + 69) * 8 + (7 + 37 + 515) bytes
@@ -542,7 +546,7 @@ static bool format_track(byte track, byte side)
   TIFR1 = bit(TOV1);
 
   // wait for start of index hole
-  if( !wait_index_hole() ) { interrupts(); return false; }
+  if( !wait_index_hole() ) { interrupts(); return S_NOINDEX; }
 
   TCCR1B |= bit(WGM12);  // WGM12:10 = 010 => clear-timer-on-compare (CTC) mode 
   TCNT1 = 0;             // reset timer
@@ -602,11 +606,11 @@ static bool format_track(byte track, byte side)
 
   interrupts();
 
-  return true;
+  return S_OK;
 }
 
 
-static bool wait_header(byte track, byte side, byte sector)
+static byte wait_header(byte track, byte side, byte sector)
 {
   byte attempts = 50;
 
@@ -615,10 +619,10 @@ static bool wait_header(byte track, byte side, byte sector)
     {
 #ifdef DEBUG
       Serial.println(F("Drive not ready!")); Serial.flush();
-      return false;
 #endif
+      return S_NOTREADY;
     }
-
+  
   do
     {
       // wait for sync sequence
@@ -626,19 +630,22 @@ static bool wait_header(byte track, byte side, byte sector)
         {
           // read 7 bytes of data
           read_data(header, 7, false);
+          //if( header[0]==0xFE ) Serial.write('0'+header[3]);
           
           // make sure this is an ID record and check whether it contains the
           // expected track/side/sector information and the CRC is ok
           if( header[0]==0xFE && (track==0xFF || track==header[1]) && side==header[2] && sector==header[3] )
             {
               if( calc_crc(header, 5) == 256*header[5]+header[6] )
-                return true;
+                return S_OK;
 #ifdef DEBUG
               else
                 { Serial.println(F("Header CRC error!")); Serial.flush(); }
 #endif
             }
         }
+      else
+        return  false;
     }
   while( --attempts>0 );
   
@@ -647,7 +654,7 @@ static bool wait_header(byte track, byte side, byte sector)
     { Serial.println(F("Unable to find header!")); Serial.flush(); }
 #endif
 
-  return false;
+  return S_NOHEADER;
 }
 
 
@@ -699,7 +706,9 @@ static void step_tracks(int tracks)
 ArduinoFDCClass::ArduinoFDCClass() 
 { 
   initialized=false;
-  motorState=false; 
+  driveA=true;
+  motorStateA=false; 
+  motorStateB=false; 
 }
 
 
@@ -708,8 +717,12 @@ void ArduinoFDCClass::begin()
   // make sure all outputs pins are HIGH when we switch them to output mode
   digitalWrite(PIN_STEP,      HIGH);
   digitalWrite(PIN_STEPDIR,   HIGH);
-  digitalWrite(PIN_MOTOR,     HIGH);
-  digitalWrite(PIN_SELECT,    HIGH);
+  digitalWrite(PIN_MOTORA,    HIGH);
+  digitalWrite(PIN_SELECTA,   HIGH);
+#ifndef SINGLEDRIVE
+  digitalWrite(PIN_MOTORB,    HIGH);
+  digitalWrite(PIN_SELECTB,   HIGH);
+#endif
   digitalWrite(PIN_SIDE,      HIGH);
   digitalWrite(PIN_WRITEDATA, HIGH);
   digitalWrite(PIN_WRITEGATE, HIGH);
@@ -717,8 +730,10 @@ void ArduinoFDCClass::begin()
   // set pins to input/output mode
   pinMode(PIN_STEP,      OUTPUT);
   pinMode(PIN_STEPDIR,   OUTPUT);
-  pinMode(PIN_MOTOR,     OUTPUT);
-  pinMode(PIN_SELECT,    OUTPUT);
+  pinMode(PIN_MOTORA,    OUTPUT);
+  pinMode(PIN_MOTORB,    OUTPUT);
+  pinMode(PIN_SELECTA,   OUTPUT);
+  pinMode(PIN_SELECTB,   OUTPUT);
   pinMode(PIN_SIDE,      OUTPUT);
   pinMode(PIN_WRITEDATA, OUTPUT);
   pinMode(PIN_WRITEGATE, OUTPUT);
@@ -727,7 +742,9 @@ void ArduinoFDCClass::begin()
   pinMode(PIN_TRACK0,    INPUT_PULLUP);
 
   initialized = true;
-  motorState = false;
+  driveA      = true;
+  motorStateA = false;
+  motorStateB = false;
 }
 
 
@@ -736,8 +753,12 @@ void ArduinoFDCClass::end()
   // release all output pins
   pinMode(PIN_STEP,      INPUT);
   pinMode(PIN_STEPDIR,   INPUT);
-  pinMode(PIN_MOTOR,     INPUT);
-  pinMode(PIN_SELECT,    INPUT);
+  pinMode(PIN_MOTORA,    INPUT);
+  pinMode(PIN_SELECTA,   INPUT);
+#ifndef SINGLEDRIVE
+  pinMode(PIN_MOTORB,    INPUT);
+  pinMode(PIN_SELECTB,   INPUT);
+#endif
   pinMode(PIN_SIDE,      INPUT);
   pinMode(PIN_WRITEDATA, INPUT);
   pinMode(PIN_WRITEGATE, INPUT);
@@ -746,9 +767,9 @@ void ArduinoFDCClass::end()
 }
 
 
-bool ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffer)
+byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffer)
 {
-  bool res = false;
+  byte res = S_OK;
 
   // check whether begin() has been called
   if( !initialized )
@@ -756,7 +777,7 @@ bool ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
 #ifdef DEBUG
       Serial.println(F("Not initialized!")); Serial.flush();
 #endif
-      return false;
+      return S_NOTINIT;
     }
 
   // set up timer1
@@ -766,14 +787,14 @@ bool ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
 
   // if motor is not running then turn it on now
   bool turnMotorOff = false;
-  if( !motorState )
+  if( !motorRunning() )
     {
       turnMotorOff = true;
       motorOn();
     }
 
   // select disk drive
-  digitalWrite(PIN_SELECT, LOW);
+  digitalWrite(driveA ? PIN_SELECTA : PIN_SELECTB, LOW);
 
   // select side
   digitalWrite(PIN_SIDE, side>0 ? LOW : HIGH);
@@ -785,12 +806,12 @@ bool ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
   res = wait_header(-1, side, sector);
 
   // found the sector header but it's not on the correct track => go to correct track and check again
-  if( res && header[1]!=track ) { interrupts(); step_tracks(track-header[1]); noInterrupts(); res = wait_header(track, side, sector); }
+  if( res==S_OK && header[1]!=track ) { interrupts(); step_tracks(track-header[1]); noInterrupts(); res = wait_header(track, side, sector); }
 
   // couldn't find a header => step to correct track by going to track 0 and then stepping out and check again
-  if( !res ) { interrupts(); step_to_track0(); step_tracks(track); noInterrupts(); res = wait_header(track, side, sector); }
+  if( res!=S_OK ) { interrupts(); step_to_track0(); step_tracks(track); noInterrupts(); res = wait_header(track, side, sector); }
 
-  if( res )
+  if( res==S_OK )
     {
       // wait for data sync mark
       if( wait_sync() )
@@ -802,14 +823,14 @@ bool ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
 #ifdef DEBUG
               Serial.println(F("Unexpected record identifier")); 
 #endif
-              res = false; 
+              res = S_INVALIDID;
             }
           else if( calc_crc(buffer, 513) != 256*buffer[513]+buffer[514] )
             { 
 #ifdef DEBUG
               Serial.println(F("Data CRC error!")); 
 #endif
-              res = false; 
+              res = S_CRC; 
             }
         }
     }
@@ -818,7 +839,7 @@ bool ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
   interrupts();
 
   // de-select disk drive
-  digitalWrite(PIN_SELECT, HIGH);
+  digitalWrite(driveA ? PIN_SELECTA : PIN_SELECTB, HIGH);
 
   // if we turned the motor on then turn it off again
   if( turnMotorOff ) motorOff();
@@ -830,9 +851,9 @@ bool ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
 }
 
 
-bool ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buffer, bool verify)
+byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buffer, bool verify)
 {
-  bool res = false;
+  byte res = S_OK;
 
   // check whether begin() has been called
   if( !initialized )
@@ -840,7 +861,7 @@ bool ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
 #ifdef DEBUG
       Serial.println(F("Not initialized!")); Serial.flush();
 #endif
-      return false;
+      return S_NOTINIT;
     }
 
   // set up timer1
@@ -850,14 +871,14 @@ bool ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
 
   // if motor is not running then turn it on now
   bool turnMotorOff = false;
-  if( !motorState )
+  if( !motorRunning() )
     {
       turnMotorOff = true;
       motorOn();
     }
 
   // select disk drive
-  digitalWrite(PIN_SELECT, LOW);
+  digitalWrite(driveA ? PIN_SELECTA : PIN_SELECTB, LOW);
 
   // calculate CRC for the sector data
   buffer[0]   = 0xFB;
@@ -875,13 +896,13 @@ bool ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
   res = wait_header(-1, side, sector);
 
   // found the sector header but it's not on the correct track => go to correct track and check again
-  if( res && header[1]!=track ) { interrupts(); step_tracks(track-header[1]); noInterrupts(); res = wait_header(track, side, sector); }
+  if( res==S_OK && header[1]!=track ) { interrupts(); step_tracks(track-header[1]); noInterrupts(); res = wait_header(track, side, sector); }
 
   // couldn't find a header => step to correct track by going to track 0 and then stepping out and check again
-  if( !res ) { interrupts(); step_to_track0(); step_tracks(track); noInterrupts(); res = wait_header(track, side, sector); }
+  if( res!=S_OK ) { interrupts(); step_to_track0(); step_tracks(track); noInterrupts(); res = wait_header(track, side, sector); }
   
   // if we found the header then write the data
-  if( res ) 
+  if( res==S_OK ) 
     {
       write_data(buffer, 515);
 
@@ -892,15 +913,15 @@ bool ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
           res = wait_header(track, side, sector);
 
           // wait for data sync mark
-          if( res ) res = wait_sync();
+          if( res==S_OK && !wait_sync() ) res = S_NOSYNC;
 
           // compare the data
-          if( res && !read_data(buffer, 515, true) )
+          if( res==S_OK && !read_data(buffer, 515, true) )
             {
 #ifdef DEBUG
               Serial.println("Verify after write failed!"); Serial.flush();
 #endif
-              res = false;
+              res = S_VERIFY;
             }
         }
     }
@@ -909,7 +930,7 @@ bool ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
   interrupts();
 
   // de-select disk drive
-  digitalWrite(PIN_SELECT, HIGH);
+  digitalWrite(driveA ? PIN_SELECTA : PIN_SELECTB, HIGH);
 
   // if we turned the motor on then turn it off again
   if( turnMotorOff ) motorOff();
@@ -921,9 +942,9 @@ bool ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
 }
 
 
-bool ArduinoFDCClass::formatDisk()
+byte ArduinoFDCClass::formatDisk()
 {
-  bool res = true;
+  byte res = S_OK;
   
   // check whether begin() has been called
   if( !initialized )
@@ -931,7 +952,7 @@ bool ArduinoFDCClass::formatDisk()
 #ifdef DEBUG
       Serial.println(F("Not initialized!")); Serial.flush();
 #endif
-      return false;
+      return S_NOTINIT;
     }
 
   // set up timer1
@@ -941,28 +962,31 @@ bool ArduinoFDCClass::formatDisk()
 
   // if motor is not running then turn it on now
   bool turnMotorOff = false;
-  if( !motorState )
+  if( !motorRunning() )
     {
       turnMotorOff = true;
       motorOn();
     }
 
   // select disk drive
-  digitalWrite(PIN_SELECT, LOW);
+  digitalWrite(driveA ? PIN_SELECTA : PIN_SELECTB, LOW);
 
-  step_to_track0();
+  // go to track 0
+  if( !step_to_track0() )
+    return S_NOTRACK0;
+
   delay(100);
   for(byte track=0; track<80; track++)
     {
       digitalWrite(PIN_SIDE, HIGH);
-      if( !format_track(track, 0) ) { res = false; break; }
+      res = format_track(track, 0); if( res!=S_OK ) break;
       digitalWrite(PIN_SIDE, LOW);
-      if( !format_track(track, 1) ) { res = false; break; }
+      res = format_track(track, 1); if( res!=S_OK ) break;
       if( track<79 ) step_tracks(1);
     }
 
   // de-select disk drive
-  digitalWrite(PIN_SELECT, HIGH);
+  digitalWrite(driveA ? PIN_SELECTA : PIN_SELECTB, HIGH);
 
   // if we turned the motor on then turn it off again
   if( turnMotorOff ) motorOff();
@@ -976,16 +1000,58 @@ bool ArduinoFDCClass::formatDisk()
 
 void ArduinoFDCClass::motorOn()
 {
-  digitalWrite(PIN_MOTOR, LOW);
-  motorState = true;
-  
-  // allow some time for the motor to spin up
-  delay(1000);
+  if( !motorRunning() )
+    {
+      if( driveA )
+        {
+          digitalWrite(PIN_MOTORA, LOW);
+          motorStateA = true;
+        }
+      else
+        {
+          digitalWrite(PIN_MOTORB, LOW);
+          motorStateB = true;
+        }
+      
+      // allow some time for the motor to spin up
+      delay(1000);
+    }
 }
 
 
 void ArduinoFDCClass::motorOff()
 {
-  digitalWrite(PIN_MOTOR, HIGH);
-  motorState = false;
+  if( driveA )
+    {
+      digitalWrite(PIN_MOTORA, HIGH);
+      motorStateA = false;
+    }
+  else
+    {
+      digitalWrite(PIN_MOTORB, HIGH);
+      motorStateB = false;
+    }
+}
+
+
+bool ArduinoFDCClass::motorRunning() 
+{ 
+  return driveA ? motorStateA : motorStateB;
+}
+
+
+
+void ArduinoFDCClass::selectDrive(byte drive)
+{
+#ifdef SINGLEDRIVE
+  if( drive!=0 ) Serial.println(F("Code compiled with SINGLEDRIVE defined - Can only control one drive"));
+#else
+  driveA = (drive==0);
+#endif
+}
+
+
+byte ArduinoFDCClass::selectedDrive()
+{
+  return driveA ? 0 : 1;
 }
