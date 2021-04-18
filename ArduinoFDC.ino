@@ -1,6 +1,6 @@
 // -----------------------------------------------------------------------------
-// Double Density (DD, 720k) 3.5" disk controller for Arduino
-// Copyright (C) 2020 David Hansel
+// 3.5"/5.25" DD/HD Disk controller for Arduino
+// Copyright (C) 2021 David Hansel
 //
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@
 
 #include "ArduinoFDC.h"
 
-static byte data[515];
+static byte data[516];
 
 
 static const uint8_t PROGMEM bootsector[512] = {
@@ -96,6 +96,31 @@ static void dump_buffer(byte *buf, int n)
 }
 
 
+static String read_user_cmd()
+{
+  String s;
+  do
+    {
+      int i = Serial.read();
+
+      if( (i==13 || i==10) && s!="" )
+        { Serial.println(); break; }
+      else if( i==27 )
+        { s = ""; Serial.println(); break; }
+      else if( i==8 )
+        { 
+          if( s.length()>0 )
+            { Serial.write(8); Serial.write(' '); Serial.write(8); s = s.substring(0, s.length()-1); }
+        }
+      else if( isprint(i) )
+        { s = s + String((char )i); Serial.write(i); }
+    }
+  while(true);
+
+  return s;
+}
+
+
 void print_error(byte n)
 {
   switch( n )
@@ -110,7 +135,22 @@ void print_error(byte n)
     case S_NOINDEX   : Serial.print(F("No index hole detected")); break;
     case S_NOTRACK0  : Serial.print(F("No track 0 signal detected")); break;
     case S_VERIFY    : Serial.print(F("Verify after write failed")); break;
+    case S_READONLY  : Serial.print(F("Disk is write protected")); break;
     default          : Serial.print(F("Unknonwn error")); break;
+    }
+}
+
+
+void print_drive_type(byte n)
+{
+  switch( n )
+    {
+    case ArduinoFDCClass::DT_5_DD: Serial.print(F("5.25\" double density")); break;
+    case ArduinoFDCClass::DT_5_DDonHD: Serial.print(F("5.25\" double density disk in high density drive")); break;
+    case ArduinoFDCClass::DT_5_HD: Serial.print(F("5.25\" high density")); break;
+    case ArduinoFDCClass::DT_3_DD: Serial.print(F("3.5\" double density")); break;
+    case ArduinoFDCClass::DT_3_HD: Serial.print(F("3.5\" high density")); break;
+    default: Serial.print(F("Unknown"));
     }
 }
 
@@ -119,6 +159,14 @@ void setup()
 {
   Serial.begin(115200);
   ArduinoFDC.begin();
+
+  Serial.print("Drive A is: "); print_drive_type(ArduinoFDC.getDriveType()); Serial.println();
+  if( ArduinoFDC.selectDrive(1) )
+    {
+      Serial.print("Drive B is: "); print_drive_type(ArduinoFDC.getDriveType()); Serial.println();
+      ArduinoFDC.selectDrive(0);
+    }
+
   ArduinoFDC.motorOn();
 }
 
@@ -131,15 +179,14 @@ void loop()
 
   Serial.setTimeout(1000000);
   Serial.print(F("\r\n\r\nCommand: "));
-  String s = Serial.readStringUntil('\n');
-  Serial.println(s);
+  String s = read_user_cmd();
   n = sscanf(s.c_str(), "%c%i,%i,%i", &cmd, &a1, &a2, &a3);
   if( n<=0 || isspace(cmd) ) return;
 
   if( cmd=='r' && n>=3 )
     {
       track=a1; sector=a2; head= (n==3) ? 0 : a3;
-      if( head>=0 && head<2 && track>=0 && track<80 && sector>=1 && sector<10 )
+      if( head>=0 && head<2 && track>=0 && track<ArduinoFDC.numTracks() && sector>=1 && sector<=ArduinoFDC.numSectors() )
         {
           Serial.print(F("Reading track ")); Serial.print(track); 
           Serial.print(F(" sector ")); Serial.print(sector);
@@ -160,41 +207,44 @@ void loop()
     }
   else if( cmd=='r' && n==1 )
     {
-      byte sectors[9] = {1,3,5,7,9,2,4,6,8};
       ArduinoFDC.motorOn();
-      for(track=0; track<80; track++)
+      for(track=0; track<ArduinoFDC.numTracks(); track++)
         for(head=0; head<2; head++)
-          for(byte i=0; i<9; i++)
-            {
-              sector = sectors[i];
-              byte attempts = 0;
-              while( true )
-                {
-                  sector = sectors[i];
-                  Serial.print(F("Reading track ")); Serial.print(track); 
-                  Serial.print(F(" sector ")); Serial.print(sector);
-                  Serial.print(F(" side ")); Serial.print(head);
-                  Serial.flush();
-                  byte status = ArduinoFDC.readSector(track, head, sector, data);
-                  if( status==S_OK )
-                    {
-                      Serial.println(F(" => ok"));
-                      break;
-                    }
-                  else if( (status==S_INVALIDID || status==S_CRC) && (attempts++ < 10) )
-                    Serial.println(F(" => CRC error, trying again"));
-                  else
-                    {
-                      Serial.print(F("=> Error: ")); print_error(status); Serial.println('!');
-                      break;
-                    }
-                }
-            }
+          {
+            sector = 1;
+            for(byte i=0; i<ArduinoFDC.numSectors(); i++)
+              {
+                byte attempts = 0;
+                while( true )
+                  {
+                    Serial.print(F("Reading track ")); Serial.print(track); 
+                    Serial.print(F(" sector ")); Serial.print(sector);
+                    Serial.print(F(" side ")); Serial.print(head);
+                    Serial.flush();
+                    byte status = ArduinoFDC.readSector(track, head, sector, data);
+                    if( status==S_OK )
+                      {
+                        Serial.println(F(" => ok"));
+                        break;
+                      }
+                    else if( (status==S_INVALIDID || status==S_CRC) && (attempts++ < 10) )
+                      Serial.println(F(" => CRC error, trying again"));
+                    else
+                      {
+                        Serial.print(F("=> Error: ")); print_error(status); Serial.println('!');
+                        break;
+                      }
+                  }
+
+                sector+=2;
+                if( sector>ArduinoFDC.numSectors() ) sector = 2;
+              }
+          }
     }
   else if( cmd=='w' && n>=3 )
     {
       track=a1; sector=a2; head= (n==3) ? 0 : a3;
-      if( head>=0 && head<2 && track>=0 && track<80 && sector>=1 && sector<10 )
+      if( head>=0 && head<2 && track>=0 && track<ArduinoFDC.numTracks() && sector>=1 && sector<=ArduinoFDC.numSectors() )
         {
           Serial.print(F("Writing and verifying track ")); Serial.print(track); 
           Serial.print(F(" sector ")); Serial.print(sector);
@@ -220,22 +270,31 @@ void loop()
       while( (c=Serial.read())<0 );
       if( c=='y' )
         {
-          byte sectors[9] = {1,3,5,7,9,2,4,6,8};
           ArduinoFDC.motorOn();
-          for(track=0; track<80; track++)
+          for(track=0; track<ArduinoFDC.numTracks(); track++)
             for(head=0; head<2; head++)
-              for(byte i=0; i<9; i++)
-                {
-                  sector = sectors[i];
-                  Serial.print(verify ? F("Writing and verifying track ") : F("Writing track ")); Serial.print(track);
-                  Serial.print(F(" sector ")); Serial.print(sector);
-                  Serial.print(F(" side ")); Serial.print(head);
-                  Serial.flush();
-                  if( ArduinoFDC.writeSector(track, head, sector, data, verify)==S_OK )
-                    Serial.println(F(" => ok"));
-                  else
-                    Serial.println(F(" => ERROR writing sector"));
-                }
+              {
+                sector = 1;
+                for(byte i=0; i<ArduinoFDC.numSectors(); i++)
+                  {
+                    Serial.print(verify ? F("Writing and verifying track ") : F("Writing track ")); Serial.print(track);
+                    Serial.print(F(" sector ")); Serial.print(sector);
+                    Serial.print(F(" side ")); Serial.print(head);
+                    Serial.flush();
+                    byte status = ArduinoFDC.writeSector(track, head, sector, data, verify);
+                    if( status==S_OK )
+                      Serial.println(F(" => ok"));
+                    else
+                      {
+                        Serial.print(F(" => ERROR: "));
+                        print_error(status);
+                        Serial.println();
+                      }
+
+                    sector+=2;
+                    if( sector>ArduinoFDC.numSectors() ) sector = 2;
+                  }
+              }
         }
     }
   else if( cmd=='f' && n>=1 )
@@ -254,21 +313,66 @@ void loop()
               if( n>1 && a1)
                 {
                   Serial.println(F("Initializing DOS file system..."));
+                  Serial.flush();
+
+                  byte secPerCluster, secPerFat, maxDirEntries, mediaDesc, numReserved;
+                  byte secPerTrack =  ArduinoFDC.numSectors();
+                  uint16_t totalSec = secPerTrack * ArduinoFDC.numTracks() * 2;
+                  switch( ArduinoFDC.getDriveType() )
+                    {
+                    case ArduinoFDCClass::DT_5_DD:
+                    case ArduinoFDCClass::DT_5_DDonHD:
+                      secPerCluster = 2;
+                      secPerFat     = 2;
+                      maxDirEntries = 112;
+                      mediaDesc     = 0xFD;
+                      numReserved   = 1 + 2*2 + 7;
+                      break;
+
+                    case ArduinoFDCClass::DT_5_HD:
+                      secPerCluster = 1;
+                      secPerFat     = 7;
+                      maxDirEntries = 224;
+                      mediaDesc     = 0xF9;
+                      numReserved   = 1 + 2*7 + 14;
+                      break;
+
+                    case ArduinoFDCClass::DT_3_DD:
+                      secPerCluster = 2;
+                      secPerFat     = 3;
+                      maxDirEntries = 112;
+                      mediaDesc     = 0xF9;
+                      numReserved   = 1 + 2*3 + 7;
+                      break;
+
+                    case ArduinoFDCClass::DT_3_HD:
+                      secPerCluster = 1;
+                      secPerFat     = 9;
+                      maxDirEntries = 224;
+                      mediaDesc     = 0xF0;
+                      numReserved   = 1 + 2*9 + 14;
+                      break;
+                    }
                   
                   for(int i=0; i<512; i++) data[i+1] = pgm_read_byte_near(bootsector+i);
+                  data[13+1] = secPerCluster;
+                  data[17+1] = maxDirEntries;
+                  data[19+1] = totalSec & 255;
+                  data[20+1] = totalSec / 256;
+                  data[21+1] = mediaDesc;
+                  data[22+1] = secPerFat;
+                  data[24+1] = secPerTrack;
                   ArduinoFDC.writeSector(0, 0, 1, data, false);
                   
                   memset(data+1, 0x00, 512);
-                  ArduinoFDC.writeSector(0, 0, 3, data, false);
-                  ArduinoFDC.writeSector(0, 0, 6, data, false);
-                  ArduinoFDC.writeSector(0, 0, 8, data, false);
-                  ArduinoFDC.writeSector(0, 0, 4, data, false);
-                  ArduinoFDC.writeSector(0, 0, 7, data, false);
-                  ArduinoFDC.writeSector(0, 0, 9, data, false);
-                  
-                  data[1]=0xF9; data[2]=0xFF; data[3]=0xFF;
-                  ArduinoFDC.writeSector(0, 0, 2, data, false);
-                  ArduinoFDC.writeSector(0, 0, 5, data, false);
+                  for(int i=1; i<numReserved; i++)
+                    {
+                      bool isFatStart = (i==1) || (i==1+secPerFat);
+                      data[1] = isFatStart ? mediaDesc : 0x00;
+                      data[2] = isFatStart ? 0xFF : 0x00;
+                      data[3] = isFatStart ? 0xFF : 0x00;
+                      ArduinoFDC.writeSector(0, i/secPerTrack, (i%secPerTrack)+1, data, false);
+                    }
                 }
             }
           else
@@ -338,6 +442,12 @@ void loop()
           ArduinoFDC.motorOn();
         }
     }
+  else if( cmd=='t' && n>0 )
+    {
+      ArduinoFDC.setDriveType(a1);
+      Serial.print(F("Setting type of drive ")); Serial.print(ArduinoFDC.selectedDrive()); 
+      Serial.print(F(" to: ")); print_drive_type(ArduinoFDC.getDriveType()); Serial.println();
+    }
   else if( cmd=='c' )
     {
       char c;
@@ -345,80 +455,100 @@ void loop()
       while( (c=Serial.read())<0 );
       if( c=='y' )
         {
-          byte sectors[9] = {1,6,2,7,3,8,4,9,5};
-          ArduinoFDC.selectDrive(1);
+          if( !ArduinoFDC.selectDrive(1) )
+            {
+              Serial.println(F("PIN_MOTORB and/or PIN_SELECTB not set in ArduinoFDC.cpp"));
+              return;
+            }
+
           ArduinoFDC.motorOn();
+          byte t = ArduinoFDC.getDriveType();
           ArduinoFDC.selectDrive(0);
           ArduinoFDC.motorOn();
-          for(track=0; track<80; track++)
+          
+          if( ArduinoFDC.getDriveType() != t )
+            {
+              Serial.println(F("Can only copy between drives of the same type"));
+              return;
+            }
+
+          for(track=0; track<ArduinoFDC.numTracks(); track++)
             for(head=0; head<2; head++)
-              for(byte i=0; i<9; i++)
-                {
-                  ArduinoFDC.selectDrive(0);
-                  byte status, attempts = 0;
-                  while( true )
-                    {
-                      sector = sectors[i];
-                      Serial.print(F("Reading drive A track ")); Serial.print(track); 
-                      Serial.print(F(" sector ")); Serial.print(sector);
-                      Serial.print(F(" side ")); Serial.print(head);
-                      Serial.flush();
-                      status = ArduinoFDC.readSector(track, head, sector, data);
-                      if( status==S_OK )
-                        {
-                          Serial.println(F(" => ok"));
-                          break;
-                        }
-                      else if( (status==S_INVALIDID || status==S_CRC) && (attempts++ < 5) )
-                        Serial.println(F(" => CRC error, trying again"));
-                      else
-                        {
-                          Serial.print(F("Error: ")); print_error(status); Serial.println('!');
-                          break;
-                        }
-                    }
+              {
+                sector = 1;
+                for(byte i=0; i<ArduinoFDC.numSectors(); i++)
+                  {
+                    ArduinoFDC.selectDrive(0);
+                    byte status, attempts = 0;
+                    while( true )
+                      {
+                        Serial.print(F("Reading drive A track ")); Serial.print(track); 
+                        Serial.print(F(" sector ")); Serial.print(sector);
+                        Serial.print(F(" side ")); Serial.print(head);
+                        Serial.flush();
+                        status = ArduinoFDC.readSector(track, head, sector, data);
+                        if( status==S_OK )
+                          {
+                            Serial.println(F(" => ok"));
+                            break;
+                          }
+                        else if( (status==S_INVALIDID || status==S_CRC) && (attempts++ < 5) )
+                          Serial.println(F(" => CRC error, trying again"));
+                        else
+                          {
+                            Serial.print(F("Error: ")); print_error(status); Serial.println('!');
+                            break;
+                          }
+                      }
                   
-                  if( status==S_OK )
-                    {
-                      attempts = 0;
-                      while( true )
-                        {
-                          Serial.print(F("Writing drive B track ")); Serial.print(track); 
-                          Serial.print(F(" sector ")); Serial.print(sector);
-                          Serial.print(F(" side ")); Serial.print(head);
-                          Serial.flush();
+                    if( status==S_OK )
+                      {
+                        attempts = 0;
+                        while( true )
+                          {
+                            Serial.print(F("Writing drive B track ")); Serial.print(track); 
+                            Serial.print(F(" sector ")); Serial.print(sector);
+                            Serial.print(F(" side ")); Serial.print(head);
+                            Serial.flush();
                           
-                          ArduinoFDC.selectDrive(1);
-                          status = ArduinoFDC.writeSector(track, head, sector, data, n>1 && a1>0);
-                          if( status==S_OK )
-                            { 
-                              Serial.println(F(" => ok")); 
-                              break; 
-                            }
-                          else if( (status==S_VERIFY) && (attempts++ < 5) )
-                            Serial.println(F(" => verify error, trying again"));
-                          else
-                            { 
-                              Serial.print(F("Error: ")); print_error(status); Serial.println('!'); 
-                              break;
-                            }
-                        }
-                    }
-                }
+                            ArduinoFDC.selectDrive(1);
+                            status = ArduinoFDC.writeSector(track, head, sector, data, n>1 && a1>0);
+                            if( status==S_OK )
+                              { 
+                                Serial.println(F(" => ok")); 
+                                break; 
+                              }
+                            else if( (status==S_VERIFY) && (attempts++ < 5) )
+                              Serial.println(F(" => verify error, trying again"));
+                            else
+                              { 
+                                Serial.print(F("Error: ")); print_error(status); Serial.println('!'); 
+                                break;
+                              }
+                          }
+                      }
+                  }
+
+                sector+=2;
+                if( sector>ArduinoFDC.numSectors() ) sector = 2;
+              }
         }
     }
-  else if( cmd=='h' )
+  else if( cmd=='h' || cmd=='?' )
     {
       Serial.println(F("Supported commands:"));
       Serial.println(F("r track, sector, side     Read sector to buffer and print buffer"));
       Serial.println(F("r                         Read ALL sectors and print pass/fail"));
       Serial.println(F("w track, sector, side     Write buffer to sector"));
-      Serial.println(F("w [0/1]                   Write buffer to ALL sectors without/with verify"));
+      Serial.println(F("w [0/1]                   Write buffer to ALL sectors (without/with verify)"));
       Serial.println(F("b                         Print buffer"));
       Serial.println(F("B [n]                     Fill buffer with 'n' or 00..FF if n not given"));
       Serial.println(F("m 0/1                     Turn drive motor off/on"));
       Serial.println(F("s 0/1                     Select drive A/B"));
+      Serial.println(F("t 0/1/2/3/4               Set type of current drive (3.5DD/3.5DDinHD/5.25DD/5.25HD)"));
+      Serial.println(F("f [0/1]                   Format disk (without/with initializing DOS file system)"));
       Serial.println(F("c [0/1]                   Copy contents of disk in drive A to disk in drive B (verify off/on)"));
+      
     }
   else
     Serial.println(F("Invalid command"));
