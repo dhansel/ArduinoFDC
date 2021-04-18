@@ -32,7 +32,7 @@ Arduino pin  | Floppy Drive pin | Notes  | Function
 10           | 24               |        | Write Gate (write enable)
 11           | 26               | 2,3    | Track 0
 12           | 28               | 3,4    | Write Protect signal
-13           | 2                | 3,4    | Density select signal
+13           | 2                | 3,4,5  | Density select signal
 A0           | 16               | 1,3,4  | Motor Enable B
 A1           | 12               | 1,3,4  | Drive Select B
 GND          | 1,3,5,...,31,33  |        | GND (just pick one)
@@ -59,6 +59,9 @@ This signal is not essential for the functionality of the controller.
 The corresponding pin can be freed by commenting out the `#define PIN_XXX ...`
 statement at the top of ArduinoFDC.cpp
 
+**Note 5:**
+See section "DENSITY control signal" below.
+
 ## Supported disk/drive types:
 
 To properly read/write data, the library must be configured for the drive/disk
@@ -69,6 +72,34 @@ or set afterwards by calling the `setDriveType` function. Supported types are:
 * **ArduinoFDC::DT_5_HD**: High-density disk in a 5.25" high-density drive
 * **ArduinoFDC::DT_3_DD**: Double-density disk in a 3.5" double- or high-density drive
 * **ArduinoFDC::DT_3_HD**: High-density disk in a 3.5" high-density drive
+
+## DENSITY control signal
+
+The function of the DENSITY control signal line between the controller and the
+floppy drive is not well defined and varies between drives. Furthermore most drives
+can be configured by jumpers (also called "straps"). You may want to consult the
+documentation for your drive for details.
+
+In their default configuration most 3.5" drives do not use this signal. The drive
+itself determines the type of disk (DD or HD) by the presence of a hole in the disk
+(on the opposite edge from the "write protect" hole). The controller must be configured
+separately for the correct type (DD or HD), otherwise reading/writing will fail.
+
+For 5.25" drives this signal is generally an input from the controller to the drive.
+If the signal is LOW then low density mode is selected, otherwise high density is used.
+However, for some drives the opposite is true. 
+
+The controller can be configured what to do with this signal by calling the "setDensityPinMode"
+function. The following modes are supported:
+* **ArduinoFDC::DP_DISCONNECT**: This configures the DENSITY pin as INPUT. It does not actually read the pin.
+* **ArduinoFDC::DP_OUTPUT_LOW_FOR_HD**: This configures the DENSITY pin as an OUTPUT and sets it LOW if the disk type is HD.
+* **ArduinoFDC::DP_OUTPUT_LOW_FOR_DD**: This configures the DENSITY pin as an OUTPUT and sets it LOW if the disk type is DD.
+
+By default, the mode is set to DP_DISCONNECT for 3.5" disks and DP_OUTPUT_LOW_FOR_DD for 5.25" disks.
+
+Another way to handle the DENSITY signal is to comment out the `#define PIN_DENSITY` line
+at the top of ArduinoFDC.cpp and hard-wire the DENSITY signal from the disk drive cable
+to the proper level.
 
 ## Library functions:
 
