@@ -141,10 +141,10 @@ Returns the number of sectors per track for the drive type of the currently sele
 #### `byte ArduinoFDC.readSector(byte track, byte side, byte sector, byte *buffer)`
 Reads data from a sector from the flopy disk. Always reads a full sector (512 bytes).
 
-* The "track" parameter must be in range 0..79
+* The "track" parameter must be in range 0..(numTracks()-1)
 * The "side" parameter must either be 0 or 1
-* The "sector" paramter must be in range 1..9
-* The "buffer" parameter must be a pointer to a byte array of size (at least) 515 bytes.
+* The "sector" paramter must be in range 1..numSectors()
+* The "buffer" parameter must be a pointer to a byte array of size (at least) 516 bytes.
 
 The function returns 0 if reading succeeded. Otherwise an error code is returned
 (see Troubleshooting section below)
@@ -154,10 +154,10 @@ The function returns 0 if reading succeeded. Otherwise an error code is returned
 #### `byte ArduinoFDC.writeSector(byte track, byte side, byte sector, byte *buffer, bool verify)`
 Writes data to a sector on the floppy disk. Always writes a full sector (512 bytes).
 
-* The "track" parameter must be in range 0..79
+* The "track" parameter must be in range 0..(numTracks()-1)
 * The "side" parameter must either be 0 or 1
-* The "sector" paramter must be in range 1..9
-* The "buffer" parameter must be a pointer to a byte array of size (at least) 515 bytes.
+* The "sector" paramter must be in range 1..numSectors()
+* The "buffer" parameter must be a pointer to a byte array of size (at least) 516 bytes.
 * If the "verify" parameter is *true*, the data written will be read back and compared to what was written.
 If a difference is detected then the function will return *false*.
 If the "verify" parameter is *false* then no verification is done. The function may still return *false*
@@ -169,13 +169,13 @@ The function returns 0 if writing succeeded. Otherwise an error code is returned
 **IMPORTANT:** The sector data to be written must be in buffer[1..512] (**NOT** buffer[0..511])
 
 #### `bool ArduinoFDC.formatDisk()`
-Formats a floppy disk with a low-level double density (DD) 720K format.
+Formats a floppy disk according to the format specified by the "setDriveType()" function.
 
 This function does **not** set up any file system on the disk. It only sets up the 
 low-level sector structure that allows reading and writing of sectors (and fills all
 sector data with 0xF6 bytes). In order to make the disk readable by DOS, Windows
 or other OSs a file system must be initialized. For DOS/Windows that means writing 
-certain data structures to sectors 1-9 on track 1 side 0. See the ArduinoFDC.ino 
+certain data structures to sectors on track 1 side 0. See the ArduinoFDC.ino 
 example sketch for how to do so.
 
 The function returns 0 if formatting succeeded. Otherwise an error code is returned
@@ -187,7 +187,7 @@ after formatting.
 #### `void ArduinoFDC.motorOn()`
 Turns the disk drive motor on. 
 
-The `readSector`/`writeSector`/`formatDisk` functions will turn  the motor on **and** off 
+The `readSector`/`writeSector`/`formatDisk` functions will turn the motor on **and** off 
 automatically if it is not already running. Note that turning on the motor also includes
 a one second delay to allow it to spin up.  If you are reading/writing multiple sectors
 you may want to use the `motorOn` and `motorOff` functions to manually turn the motor on
