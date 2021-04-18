@@ -1,14 +1,13 @@
 # ArduinoFDC
 
 This is a small library providing low-level functions which enable an
-Arduino UNO (or any ATMega328P) to control a 3.5" floppy disk drive.
+Arduino UNO (or any ATMega328P) to control a 3.5" or 5.25" floppy disk drive.
 It supports reading and writing disks at the sector level as well as 
 formatting disks.
 
-Note that this controller only works as a double density (DD) controller,
-reading/writing up to 720KB per disk. It does not work with disks formatted
-as HD (1.44MB). It can however format a HD disk with DD format and then
-write to and read from it.
+This controller works with double density (DD) as well as high density (HD)
+disk drives. It can read/write 5.25" DD (360KB), 5.25" HD (1.2MB), 3.5" DD (720KB)
+and 3.5" HD (1.44MB) disks.
 
 ## Wiring:
 
@@ -20,21 +19,23 @@ easily be changed whereas others are hard-coded in the controller code. Refer to
 the comments at the top of the ArduinoFDC.cpp file if you want to use different
 pin assignments.
 
-Arduino pin  | Floppy Drive pin | Function
--------------|------------------|-------------------------
-2            | 20               | Head Step Pulse
-3            | 18               | Head Step Direction
-4            | 10               | Motor Enable A (see note 1 below)
-5            | 14               | Drive Select A (see note 1 below)
-6            | 32               | Side Select
-7            | 8 	        | Index (see note 2 below)
-8            | 30               | Read Data (see note 2 below)
-9            | 22               | Write Data
-10           | 24               | Write Enable
-11           | 26               | Track 0 (see note 2 below)
-12           | 16               | Motor Enable B (see note 1 below)
-13           | 12               | Drive Select B (see note 1 below)
-GND          | 1,3,5,...,31,33  | GND (just pick one)
+Arduino pin  | Floppy Drive pin | Notes  | Function
+-------------|------------------|--------|----------------
+2            | 20               | 3      | Head Step Pulse
+3            | 18               | 3      | Head Step Direction
+4            | 10               | 1,3    | Motor Enable A
+5            | 14               | 1,3    | Drive Select A
+6            | 32               | 3      | Side Select
+7            | 8 	              | 2      | Index
+8            | 30               | 2      | Read Data
+9            | 22               |        | Write Data
+10           | 24               |        | Write Gate (write enable)
+11           | 26               | 2,3    | Track 0
+12           | 28               | 3,4    | Write Protect signal
+13           | 2                | 3,4    | Density select signal
+A0           | 16               | 1,3,4  | Motor Enable B
+A1           | 12               | 1,3,4  | Drive Select B
+GND          | 1,3,5,...,31,33  |        | GND (just pick one)
 
 **Note 1:**
 The pin numbers for the SELECT/MOTOR signals assume you are wiring to
@@ -42,17 +43,21 @@ the controller end of a floppy drive cable. If you are wiring directly
 to the floppy drive, the A/B pins will be reversed (search the web
 for "Floppy drive twist" for more information).
 
-If you want to save two Arduino pins and are only planning to control
-one drive, you un-comment the `#define SINGLEDRIVE` line in file
-ArduinoFDC.cpp. In that case the controller only supports one drive
-and does not use Arduino pins 12 and 13.
-
 **Note 2:**
 It is **highly** recommended (but not entirely necessary) to add a 1k 
 pull-up resistor to +5V to this signal. The Arduino's built-in pull-up
 resistors are very weak and may not pull the signal up quickly enough. 
 It worked for me without the resistors but results may vary for different
 drives.
+
+**Note 3:**
+This signal can easily be moved to a different pin by re-defining the corresponding
+`#define PIN_XXX ...` statement at the top of ArduinoFDC.cpp
+
+**Note 4:**
+This signal is not essential for the functionality of the controller.
+The corresponding pin can be freed by commenting out the `#define PIN_XXX ...`
+statement at the top of ArduinoFDC.cpp
 
 ## Library functions:
 
