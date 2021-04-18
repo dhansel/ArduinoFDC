@@ -59,20 +59,53 @@ This signal is not essential for the functionality of the controller.
 The corresponding pin can be freed by commenting out the `#define PIN_XXX ...`
 statement at the top of ArduinoFDC.cpp
 
+## Supported disk/drive types:
+
+To properly read/write data, the library must be configured for the drive/disk
+combination that is being used. The drive type can be passed into the `begin` functions
+or set afterwards by calling the `setDriveType` function. Supported types are:
+* **ArduinoFDC::DT_5_DD**: Double-density disk in a 5.25" double-density drive
+* **ArduinoFDC::DT_5_DDonHD**: Double-density disk in a 5.25" high-density drive
+* **ArduinoFDC::DT_5_HD**: High-density disk in a 5.25" high-density drive
+* **ArduinoFDC::DT_3_DD**: Double-density disk in a 3.5" double- or high-density drive
+* **ArduinoFDC::DT_3_HD**: High-density disk in a 3.5" high-density drive
+
 ## Library functions:
 
 After adding ArduinoFDC.h and ArduinoFDC.cpp to your Arduino sketch you
 can use the following functions:
 
-#### `void ArduinoFDC.begin()`
-Initializes the Arduino pins used by the controller. 
+#### `void ArduinoFDC.begin(driveAtype, driveBtype)`
+Initializes the Arduino pins used by the controller. For possible drive types see
+the "Supported disk/drive types" section above. If left out both types default to
+ArduinoFDC::DT_3_HD.
 
 #### `void ArduinoFDC.end()`
 Releases the pins initialized by ArduinoFDC.begin()
 
-#### `void ArduinoFDC.selectDrive(byte drive)`
+#### `bool ArduinoFDC.selectDrive(byte drive)`
 Selects drive A (0) or B (1) to be used for subsequent calls to 
 readSector/writeSector/formatDisk. Calling `begin()` selects drive A.
+Returns 'false' if trying to select drive 1 when the corresponding control
+pins are commented out in ArduinoFDC.cpp
+
+#### `void ArduinoFDC.setDriveType(driveType)`
+Sets the disk/drive type for the currently selected drive. For possible drive types see
+the "Supported disk/drive types" section above. 
+
+#### `byte ArduinoFDC.getDriveType(driveType)`
+Returns the drive type of the currently selected drive.
+
+#### `void ArduinoFDC.setDensityPinMode(mode)`
+Sets the function of the DENSITY pin for the currently selected drive.
+See section "Density signal" above.
+
+#### `byte ArduinoFDC.numTracks()`
+Returns the number of tracks for the drive type of the currently selected drive.
+
+#### `byte ArduinoFDC.numSectors()`
+Returns the number of sectors per track for the drive type of the currently selected drive.
+
 
 #### `byte ArduinoFDC.readSector(byte track, byte side, byte sector, byte *buffer)`
 Reads data from a sector from the flopy disk. Always reads a full sector (512 bytes).
@@ -205,3 +238,4 @@ the disk is identified HD and the drive quitely refuses to format it as DD.
 7 | S_NOINDEX   | No index hole was detected within 1 second with the motor running | - pins INDEX (7), MOTOR (4/12) or SELECT (5/13) not properly connected
 8 | S_NOTRACK0  | When trying to move the read head to track 0, the TRACK0 signal was not seen, even after stepping more than 80 tracks. | - pins STEP (2), STEPDIR (3), SELECT (5/13) or TRACK0 (11) not properly connected
 9 | S_VERIFY    | When reading back data that was just written, the data did not match | - pins WRITEGATE (10) or WRITEDATA (9) not properly connected<br/> - bad disk
+10 | S_READONLY | Attempting to write to a write-protected disk | Disk is write protected
