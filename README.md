@@ -250,7 +250,7 @@ The following commands are supported:
 ## Troubleshooting
 
 The following table lists the error codes returned by the `readSector`, `writeSector` 
-and `formatDisk` functions including possible causes for each error, Pin numbers refer
+and `formatDisk` functions including possible causes for each error. Pin numbers refer
 to pins on the Arduino.
 
 \# | Code        | Meaning | Possible causes
