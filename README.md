@@ -264,5 +264,5 @@ to pins on the Arduino.
 6 | S_CRC       | The sector data checksum is incorrect | - bad disk or unknown format <br/> - pullup resistors too weak (see note 2 in wiring section)
 7 | S_NOINDEX   | No index hole was detected within 1 second with the motor running | - pins INDEX (7), MOTOR (4/12) or SELECT (5/13) not properly connected
 8 | S_NOTRACK0  | When trying to move the read head to track 0, the TRACK0 signal was not seen, even after stepping more than 80 tracks. | - pins STEP (2), STEPDIR (3), SELECT (5/13) or TRACK0 (11) not properly connected
-9 | S_VERIFY    | When reading back data that was just written, the data did not match | - pins WRITEGATE (10) or WRITEDATA (9) not properly connected<br/> - bad disk
+9 | S_VERIFY    | When reading back data that was just written, the data did not match | - pins WRITEGATE (10) or WRITEDATA (9) not properly connected<br/> <br/> - disk is write protected - bad disk
 10 | S_READONLY | Attempting to write to a write-protected disk | - disk is write protected
