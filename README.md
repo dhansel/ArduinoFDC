@@ -253,13 +253,6 @@ The following table lists the error codes returned by the `readSector`, `writeSe
 and `formatDisk` functions including possible causes for each error, Pin numbers refer
 to pins on the Arduino.
 
-If you have trouble reading/writing a freshly formatted disk make sure that *both*
-holes on the corners of the disk itself are *covered*. One is "write protect", the
-other is the disk type (DD/HD). If the disk is write protected then some drives
-won't write to it but the Arduino doesn't know because the "write protect" signal
-is not read (I tried to not use too many pins). If the DD/HD hole is open then
-the disk is identified HD and the drive quitely refuses to format it as DD.
-
 \# | Code        | Meaning | Possible causes
 --|-------------|---------|----------------
 0 | S_OK        | No error, the operation succeeded | 
