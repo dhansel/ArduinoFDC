@@ -240,6 +240,9 @@ The following commands are supported:
 * `s [0/1]` <br/>
   Select drive A (0) or B (1). If the *0/1* parameter is left out then the currently
   selected drive is shown.
+* `t 0/1/2/3/4` <br/>
+  Set the drive type of the current drive, where 0/1/2/3/4 stands for the drive type
+  as listed (in the same order) in section "Supported disk/drive types" above.
 * `c [0/1]` <br/>
   Copy content of drive A to drive B. If the *0/1* parameter is 1 then verify the
   written data (much slower). If the parameter is left out it defaults to 0.
