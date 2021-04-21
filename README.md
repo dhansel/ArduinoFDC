@@ -265,8 +265,8 @@ the disk is identified HD and the drive quitely refuses to format it as DD.
 0 | S_OK        | No error, the operation succeeded | 
 1 | S_NOTINIT   | The ArduinoFDC.begin() function has not been called |
 2 | S_NOTREADY  | No data at all is received from the disk drive | - no disk in drive <br/> - drive does not have power <br/> - pins MOTOR (4/12), SELECT (5/13) or READ (8) not properly connected
-3 | S_NOSYNC    | Data is received but no sync mark can be found | - disk not formatted or not formatted for the correct density
-4 | S_NOHEADER  | Sync marks are found but either no sector header or no header with the expected track/side/sector markings | - pins STEP (2), STEPDIR (3) or SIDE (6) not properly connected <br/> - bad disk or unknown format <br/> - invalid track, sector or head number given
+3 | S_NOSYNC    | Data is received but no sync mark can be found | - disk not formatted or not formatted for the correct density <br/> - GND pin not properly connected
+4 | S_NOHEADER  | Sync marks are found but either no sector header or no header with the expected track/side/sector markings | - pins STEP (2), STEPDIR (3), SIDE (6) or GND not properly connected <br/> - bad disk or unknown format <br/> - invalid track, sector or head number given
 5 | S_INVALIDID | The data record was not started by a 0xFB byte as expected | - bad disk or unknown format
 6 | S_CRC       | The sector data checksum is incorrect | - bad disk or unknown format
 7 | S_NOINDEX   | No index hole was detected within 1 second with the motor running | - pins INDEX (7), MOTOR (4/12) or SELECT (5/13) not properly connected
