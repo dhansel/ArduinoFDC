@@ -72,6 +72,9 @@ class ArduinoFDCClass
 
   // get the type of the currently selected drive
   enum DriveType getDriveType() const;
+
+  // returns true if a disk is detected in the drive
+  bool haveDisk() const;
   
   // returns true if the disk is write protected
   bool isWriteProtected() const;
@@ -106,7 +109,7 @@ class ArduinoFDCClass
   // See error codes above for possible return values
   // IMPORTANT: No DOS file system is initialized, i.e. DOS or Windows
   //            will NOT recognize this as a valid disk
-  byte formatDisk();
+  byte formatDisk(byte fromTrack=0, byte toTrack=255);
 
   // Turn the disk drive motor on. The readSector/writeSector/formatDisk 
   // functions will turn on the motor automatically if it is not running 
@@ -122,10 +125,11 @@ class ArduinoFDCClass
  private:
   bool driveSelect(bool state);
   void setDensityPin();
+  byte getBitLength();
 
   enum DriveType m_driveType[2];
   enum DensityPinMode m_densityPinMode[2];
-  byte m_currentDrive;
+  byte m_currentDrive, m_bitLength[2];
   bool m_initialized, m_motorState[2];
 };
 

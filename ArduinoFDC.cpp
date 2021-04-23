@@ -19,9 +19,6 @@
 
 #include "ArduinoFDC.h"
 
-// instruct the compiler to optimize this code for performance, not size
-#pragma GCC optimize ("-O2")
-
 // input/output pin definitions
 #define PIN_STEP       2  // can be changed to different pin
 #define PIN_STEPDIR    3  // can be changed to different pin
@@ -43,7 +40,6 @@ struct DriveGeometryStruct
 {
   byte numTracks;
   byte numSectors;
-  byte bitLength;
   byte dataGap;
   byte trackSpacing;
 };
@@ -51,11 +47,11 @@ struct DriveGeometryStruct
 
 static struct DriveGeometryStruct geometry[6] =
   {
-    {40,  9, 32,  80, 1},  // 5.25" DD (360 KB)
-    {40,  9, 32,  80, 2},  // 5.25" DD disk in HD drive (360 KB)
-    {80, 15, 16,  85, 1},  // 5.25" HD (1.2 MB)
-    {80,  9, 32,  80, 1},  // 3.5"  DD (720 KB)
-    {80, 18, 16, 100, 1}   // 3.5"  HD (1.44 MB)
+    {40,  9,  80, 1},  // 5.25" DD (360 KB)
+    {40,  9,  80, 2},  // 5.25" DD disk in HD drive (360 KB)
+    {80, 15,  85, 1},  // 5.25" HD (1.2 MB)
+    {80,  9,  80, 1},  // 3.5"  DD (720 KB)
+    {80, 18, 100, 1}   // 3.5"  HD (1.44 MB)
   };
 
 
@@ -189,10 +185,9 @@ static bool wait_index_hole()
 }
 
 
-static byte read_data(byte driveType, byte *buffer, unsigned int n, byte verify)
+static byte read_data(byte bitlen, byte *buffer, unsigned int n, byte verify)
 {
   byte status;
-  byte bitlen = geometry[driveType].bitLength;
 
   // expect at least 10 bytes of 0x00 followed by three sync marks (0xA1 with one missing clock bit)
   // Data bits :     0 0 ...0  1 0 1 0 0*0 0 1  1 0 1 0 0*0 0 1  1 0 1 0 0*0 0 1
@@ -400,10 +395,8 @@ asm (// define WRITEPULSE macro (used in write_data and format_track)
      ".endm\n");
 
 
-static void write_data(byte driveType, byte *buffer, unsigned int n)
+static void write_data(byte bitlen, byte *buffer, unsigned int n)
 {
-  byte bitlen = geometry[driveType].bitLength;
-
   // make sure OC1A is high before we enable WRITE_GATE
   DDRB   &= ~0x02;                     // disable OC1A pin
   TCCR1A  = bit(COM1A1) | bit(COM1A0); // set OC1A on compare match
@@ -532,7 +525,7 @@ static void write_data(byte driveType, byte *buffer, unsigned int n)
 
 
 
-static byte format_track(byte driveType, byte track, byte side)
+static byte format_track(byte driveType, byte bitlen, byte track, byte side)
 {
   // 3.5" DD disk:
   //   writing 95 + 1 + 65 + (7 + 37 + 515 + 69) * 8 + (7 + 37 + 515) bytes
@@ -548,7 +541,6 @@ static byte format_track(byte driveType, byte track, byte side)
   byte i, buffer[8*18];
 
   byte numsec     = geometry[driveType].numSectors;
-  byte bitlen     = geometry[driveType].bitLength;
   byte datagaplen = geometry[driveType].dataGap;
 
   // pre-compute ID records
@@ -938,7 +930,7 @@ static byte format_track(byte driveType, byte track, byte side)
 }
 
 
-static byte wait_header(byte driveType, byte track, byte side, byte sector)
+static byte wait_header(byte bitlen, byte track, byte side, byte sector)
 {
   byte attempts = 50;
 
@@ -954,7 +946,7 @@ static byte wait_header(byte driveType, byte track, byte side, byte sector)
   do
     {
       // wait for sync sequence and read 7 bytes of data
-      byte status = read_data(driveType, header, 7, false);
+      byte status = read_data(bitlen, header, 7, false);
       if( status==S_OK )
         {
           // make sure this is an ID record and check whether it contains the
@@ -1033,8 +1025,10 @@ ArduinoFDCClass::ArduinoFDCClass()
 { 
   m_initialized   = false;
   m_currentDrive  = 0;
+  m_motorState[0] = false;
   m_motorState[1] = false; 
-  m_motorState[0] = false; 
+  m_driveType[0]  = 255;
+  m_driveType[1]  = 255;
 
 #if defined(PIN_DENSITY)
   m_densityPinMode[0] = DP_DISCONNECT;
@@ -1045,9 +1039,6 @@ ArduinoFDCClass::ArduinoFDCClass()
 
 void ArduinoFDCClass::begin(enum DriveType driveAType, enum DriveType driveBType)
 {
-  m_driveType[0] = driveAType;
-  m_driveType[1] = driveBType;
-
   // make sure all outputs pins are HIGH when we switch them to output mode
   digitalWrite(PIN_STEP,      LOW);
   digitalWrite(PIN_STEPDIR,   LOW);
@@ -1090,20 +1081,20 @@ void ArduinoFDCClass::begin(enum DriveType driveAType, enum DriveType driveBType
   digitalWrite(A5, LOW);
 
 #if defined(PIN_DENSITY)
-  // by default: 3.5"  drives do not use DENSITY pin (disconnect)
-  //             5.25" drives expect DENSITY to be LOW for low density
-  m_densityPinMode[0] = (m_driveType[0]==DT_3_HD || m_driveType[0]==DT_3_DD) ? DP_DISCONNECT : DP_OUTPUT_LOW_FOR_DD;
-  m_densityPinMode[1] = (m_driveType[1]==DT_3_HD || m_driveType[1]==DT_3_DD) ? DP_DISCONNECT : DP_OUTPUT_LOW_FOR_DD;
-  digitalWrite(PIN_DENSITY,   LOW);
-  pinMode(PIN_DENSITY,   INPUT);
+  digitalWrite(PIN_DENSITY, LOW);
+  pinMode(PIN_DENSITY, INPUT);
 #endif
-  
 
-  m_initialized   = true;
-  m_currentDrive  = 0;
+  m_bitLength[0] = 0;
+  m_bitLength[1] = 0;
   m_motorState[0] = false;
   m_motorState[1] = false;
-  setDensityPin();
+
+  m_currentDrive  = 1;
+  setDriveType(driveBType);
+  m_currentDrive  = 0;
+  setDriveType(driveAType);
+  m_initialized   = true;
 }
 
 
@@ -1121,8 +1112,21 @@ void ArduinoFDCClass::end()
 
 void ArduinoFDCClass::setDriveType(enum DriveType type)
 {
-  m_driveType[m_currentDrive] = type;
-  setDensityPin();
+  if( type != m_driveType[m_currentDrive] )
+    {
+      m_driveType[m_currentDrive] = type;
+
+      // by default: 3.5"     drives do not use DENSITY pin (disconnect)
+      //             5.25  DD drives do not use DENSITY pin (disconnect)
+      //             5.25" HD drives expect DENSITY to be LOW for low density
+      if( type==DT_5_DDonHD || type==DT_5_HD )
+        setDensityPinMode(DP_OUTPUT_LOW_FOR_DD);
+      else
+        setDensityPinMode(DP_DISCONNECT);
+      
+      // bit length will be determined at first read/write operation
+      m_bitLength[m_currentDrive] = 0;
+    }
 }
 
 
@@ -1172,6 +1176,52 @@ bool ArduinoFDCClass::driveSelect(bool state)
 }
 
 
+byte ArduinoFDCClass::getBitLength()
+{
+  if( m_bitLength[m_currentDrive] == 0 )
+    {
+      byte bitLength;
+
+      switch( m_driveType[m_currentDrive] )
+        {
+        case DT_3_HD: bitLength = 16; break;
+        case DT_3_DD: bitLength = 32; break;
+        case DT_5_HD: bitLength = 16; break;
+        case DT_5_DD: bitLength = 32; break;
+
+        case DT_5_DDonHD:
+          {
+            TCCR1A = 0;
+            TCCR1B = bit(CS10) | bit(CS11);  // start timer 1 with /64 prescaler
+            TCCR1C = 0;
+
+            // retrun wirht error if index hole can't be found
+            if( !wait_index_hole() ) return 0;
+
+            // build average tick count (4us/tick) over 4 revolutions
+            unsigned long l = 0;
+            for(byte i=0; i<4; i++)
+              {
+                if( !wait_index_hole() ) return 0;
+                l += TCNT1;
+              }
+
+            TCCR1B = 0; // turn off timer 1
+
+            // for 300 RPM (200 ms/rotation) data rate is 250 mbps => 32 cycles/bit
+            // for 360 RPM (166 ms/rotation) data rate is 300 mbps => 27 cycles/bit
+            bitLength = l > 180000 ? 32 : 27;
+            break;
+          }
+        }
+
+      m_bitLength[m_currentDrive] = bitLength;
+    }
+
+  return m_bitLength[m_currentDrive];
+}
+
+
 byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffer)
 {
   byte res = S_OK;
@@ -1185,11 +1235,6 @@ byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
 #endif
       return S_NOTINIT;
     }
-
-  // set up timer1
-  TCCR1A = 0;  
-  TCCR1B = bit(CS10); // falling edge input capture, prescaler 1, no output compare
-  TCCR1C = 0;  
 
   // if motor is not running then turn it on now
   bool turnMotorOff = false;
@@ -1205,23 +1250,32 @@ byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
   // select side
   digitalWriteOC(PIN_SIDE, side>0 ? LOW : HIGH);
 
+  // get MFM bit length (in processor cycles)
+  byte bitLength = getBitLength();
+  if( bitLength==0 ) return S_NOTREADY;
+
+  // set up timer1
+  TCCR1A = 0;
+  TCCR1B = bit(CS10); // falling edge input capture, prescaler 1, no output compare
+  TCCR1C = 0;
+
   // reading data is very time sensitive so we can't have interrupts
   noInterrupts();
 
   // wait for sector header
-  res = wait_header(driveType, -1, side, sector);
+  res = wait_header(bitLength, -1, side, sector);
 
   // found the sector header but it's not on the correct track => go to correct track and check again
   if( track>=geometry[driveType].numTracks ) return S_NOHEADER;
-  if( res==S_OK && header[1]!=track ) { interrupts(); step_tracks(driveType, track-header[1]); noInterrupts(); res = wait_header(driveType, track, side, sector); }
+  if( res==S_OK && header[1]!=track ) { interrupts(); step_tracks(driveType, track-header[1]); noInterrupts(); res = wait_header(bitLength, track, side, sector); }
 
   // couldn't find a header => step to correct track by going to track 0 and then stepping out and check again
-  if( res!=S_OK ) { interrupts(); step_to_track0(); step_tracks(driveType, track); noInterrupts(); res = wait_header(driveType, track, side, sector); }
+  if( res!=S_OK ) { interrupts(); step_to_track0(); step_tracks(driveType, track); noInterrupts(); res = wait_header(bitLength, track, side, sector); }
 
   if( res==S_OK )
     {
       // wait for data sync mark and read data
-      if( read_data(driveType, buffer, 515, false)==S_OK )
+      if( read_data(bitLength, buffer, 515, false)==S_OK )
         {
           if( buffer[0]!=0xFB )
             { 
@@ -1272,11 +1326,6 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
       return S_NOTINIT;
     }
 
-  // set up timer1
-  TCCR1A = 0;  
-  TCCR1B = bit(CS10); // select falling edge input capture, prescaler 1, no output compare
-  TCCR1C = 0;  
-
   // if motor is not running then turn it on now
   bool turnMotorOff = false;
   if( !motorRunning() )
@@ -1287,6 +1336,15 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
 
   // assert DRIVE_SELECT
   driveSelect(LOW);
+
+  // get MFM bit length (in processor cycles)
+  byte bitLength = getBitLength();
+  if( bitLength==0 ) return S_NOTREADY;
+
+  // set up timer1
+  TCCR1A = 0;
+  TCCR1B = bit(CS10); // select falling edge input capture, prescaler 1, no output compare
+  TCCR1C = 0;
 
   if( is_write_protected() )
     res = S_READONLY;
@@ -1306,28 +1364,28 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
       noInterrupts();
 
       // wait for sector header
-      res = wait_header(driveType, -1, side, sector);
+      res = wait_header(bitLength, -1, side, sector);
 
       // found the sector header but it's not on the correct track => go to correct track and check again
       if( track>=geometry[driveType].numTracks ) return S_NOHEADER;
-      if( res==S_OK && header[1]!=track ) { interrupts(); step_tracks(driveType, track-header[1]); noInterrupts(); res = wait_header(driveType, track, side, sector); }
+      if( res==S_OK && header[1]!=track ) { interrupts(); step_tracks(driveType, track-header[1]); noInterrupts(); res = wait_header(bitLength, track, side, sector); }
 
       // couldn't find a header => step to correct track by going to track 0 and then stepping out and check again
-      if( res!=S_OK ) { interrupts(); step_to_track0(); step_tracks(driveType, track); noInterrupts(); res = wait_header(driveType, track, side, sector); }
+      if( res!=S_OK ) { interrupts(); step_to_track0(); step_tracks(driveType, track); noInterrupts(); res = wait_header(bitLength, track, side, sector); }
   
       // if we found the header then write the data
       if( res==S_OK ) 
         {
-          write_data(driveType, buffer, 516);
+          write_data(bitLength, buffer, 516);
 
           // if we are supposed to verify the write then do so now
           if( verify )
             {
               // wait for sector header
-              res = wait_header(driveType, track, side, sector);
+              res = wait_header(bitLength, track, side, sector);
           
               // wait for data sync mark and compare the data
-              if( res==S_OK ) res = read_data(driveType, buffer, 515, true);
+              if( res==S_OK ) res = read_data(bitLength, buffer, 515, true);
             }
         }
 
@@ -1348,7 +1406,7 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
 }
 
 
-byte ArduinoFDCClass::formatDisk()
+byte ArduinoFDCClass::formatDisk(byte fromTrack, byte toTrack)
 {
   byte res = S_OK;
   
@@ -1360,11 +1418,6 @@ byte ArduinoFDCClass::formatDisk()
 #endif
       return S_NOTINIT;
     }
-
-  // set up timer1
-  TCCR1A = 0;  
-  TCCR1B = bit(CS10); // select falling edge input capture, prescaler 1, no output compare
-  TCCR1C = 0;  
 
   // if motor is not running then turn it on now
   bool turnMotorOff = false;
@@ -1381,16 +1434,25 @@ byte ArduinoFDCClass::formatDisk()
   if( !step_to_track0() )
     return S_NOTRACK0;
 
+  // get MFM bit length (in processor cycles)
+  byte bitLength = getBitLength();
+  if( bitLength==0 ) return S_NOTREADY;
+
+  // set up timer1
+  TCCR1A = 0;
+  TCCR1B = bit(CS10); // select falling edge input capture, prescaler 1, no output compare
+  TCCR1C = 0;
+
   delay(100);
 
   byte driveType = m_driveType[m_currentDrive];
   byte numTracks = geometry[driveType].numTracks;
-  for(byte track=0; track<numTracks; track++)
+  for(byte track=fromTrack; track<=toTrack && track<numTracks; track++)
     {
       digitalWriteOC(PIN_SIDE, HIGH);
-      res = format_track(driveType, track, 0); if( res!=S_OK ) break;
+      res = format_track(driveType, bitLength, track, 0); if( res!=S_OK ) break;
       digitalWriteOC(PIN_SIDE, LOW);
-      res = format_track(driveType, track, 1); if( res!=S_OK ) break;
+      res = format_track(driveType, bitLength, track, 1); if( res!=S_OK ) break;
       if( track<numTracks-1 ) step_tracks(driveType, 1);
     }
 
@@ -1446,16 +1508,54 @@ bool ArduinoFDCClass::motorRunning() const
 
 bool ArduinoFDCClass::selectDrive(byte drive)
 {
+  if( drive == m_currentDrive )
+    return true;
+  else
+    {
 #if defined(PIN_MOTORB) && defined(PIN_SELECTB)
-  m_currentDrive = (drive==0) ? 0 : 1;
-  setDensityPin();
-  return true;
+      m_currentDrive = (drive==0) ? 0 : 1;
+      setDensityPin();
+      return true;
 #else
 #ifdef DEBUG
-  if( drive!=0 ) Serial.println(F("PIN_MOTORB and/or PIN_SELECTB not defined - Can only control drive A"));
+      if( drive!=0 ) Serial.println(F("PIN_MOTORB and/or PIN_SELECTB not defined - Can only control drive A"));
 #endif
-  return false;
+      return false;
 #endif
+    }
+}
+
+
+bool ArduinoFDCClass::haveDisk() const
+{
+  bool res = false;
+
+  // set up and start timer (prescaler 1), select drive
+  TCCR1A = 0;
+  TCCR1B = bit(CS10);
+  TCCR1C = 0;
+  driveSelect(LOW);
+
+  if( motorRunning() )
+    res = wait_index_hole();
+  else
+    {
+#if defined(PIN_MOTORB) && defined(PIN_SELECTB)
+      digitalWriteOC(m_currentDrive==0 ? PIN_MOTORA : PIN_MOTORB, LOW);
+      res = wait_index_hole();
+      digitalWriteOC(m_currentDrive==0 ? PIN_MOTORA : PIN_MOTORB, HIGH);
+#else
+      digitalWriteOC(PIN_MOTORA, LOW);
+      res = wait_index_hole();
+      digitalWriteOC(PIN_MOTORA, HIGH);
+#endif
+    }
+
+  // de-select drive, stop timer
+  driveSelect(HIGH);
+  TCCR1B = 0;
+
+  return res;
 }
 
 
