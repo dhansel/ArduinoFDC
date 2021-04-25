@@ -1,3 +1,5 @@
+![ArduinoFDC Setup](setup.jpg)
+
 # ArduinoFDC
 
 This is a small library providing low-level functions which enable an
