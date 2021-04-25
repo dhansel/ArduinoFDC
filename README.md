@@ -9,6 +9,10 @@ This controller works with double density (DD) as well as high density (HD)
 disk drives. It can read/write 5.25" DD (360KB), 5.25" HD (1.2MB), 3.5" DD (720KB)
 and 3.5" HD (1.44MB) disks.
 
+The library comes with example code for low-level access to the disk contents
+as well as "ArduDOS", a (very) minimal DOS to browse/read/write the files on
+FAT (MS-DOS) formatted disks.  For details see the corresponding sections below.
+
 ## Wiring:
 
 The following table shows how to wire up the Arduino UNO pins to the 34-pin IDC
@@ -174,10 +178,7 @@ Formats a floppy disk according to the format specified by the "setDriveType()" 
 
 This function does **not** set up any file system on the disk. It only sets up the 
 low-level sector structure that allows reading and writing of sectors (and fills all
-sector data with 0xF6 bytes). In order to make the disk readable by DOS, Windows
-or other OSs a file system must be initialized. For DOS/Windows that means writing 
-certain data structures to sectors on track 1 side 0. See the ArduinoFDC.ino 
-example sketch for how to do so.
+sector data with 0xF6 bytes). 
 
 The function returns 0 if formatting succeeded. Otherwise an error code is returned
 (see Troubleshooting section below). Note that no verification of the formatted disk 
@@ -200,13 +201,66 @@ Turns the disk drive motor off.
 #### `bool ArduinoFDC.motorRunning()`
 Returns *true* if the disk drive motor is currently running and *false* if not.
 
-## Testing
+## Test / Demo
 
-In addition to the `ArduinoFDC.h` and `ArduinoFDC.cpp` library files, a small sketch
-`ArduinoFDC.ino` is provided to demonstrate and test the library. The sketch provides
-a minimal user interface to interact with the library and read/write disks. It is easy
-to use with the Arduino serial monitor. Set the monitor to 115200 baud to connect.
-When connected, the sketch will show a command prompt. Enter your command in the
+In addition to the `ArduinoFDC.h` and `ArduinoFDC.cpp` library files, a demo sketch
+`ArduinoFDC.ino` is provided. The sketch provides two interactive functions:
+1) A (very) minimal DOS to access files on the disk
+2) A low-level disk monitor to read/write sector data on a disk
+
+## ArduDOS
+
+ArduDOS is a (very) minimal DOS that allows the user to browse the file system
+on the disk and read/write files. The basic functionality is modeled on MS-DOS
+with some exceptions (all of these were necessay to because of the Arduino's 
+limited memory):
+1) All commands operate ONLY on the currently selected drive. If two drives are
+   connected then use "b:" or "a:" to switch drives.
+2) The working directory is ALWAYS the top-level directory of the disk. No "cd"
+   command is available to change the directory. Therefore, all paths given as
+   arguments to commands must be relative to the top-level directory.
+  
+The following commands are available:
+
+* `dir [directory]` <br/>
+  Show the listing of the specified directory (default is root directory).
+* `type filename` <br/>
+  Type out the specified file to the screen (best for text files).
+* `dump filename` <br/>
+  Dump the specified file to the screen in hexadecimal notation (best for binary files).
+* `write filename` <br/>
+  Receive text line-by-line from the user and write it to the specified file.
+  Enter an empty line to finish.
+* `del filename` <br/>
+  Delete the specified file.
+* `mkdir dirname` <br/>
+  Create the specified directory.
+* `rmdir dirname` <br/>
+  Remove the specified directory.
+* `disktype 0/1/2/3/4` <br/>
+  Set the drive type of the current drive, where 0/1/2/3/4 stands for the drive type
+  as listed (in the same order) in section "Supported disk/drive types" above.
+* `format [/q]` <br/>
+  Low-level format a disk and initialize a FAT file system. If `/q` argument is given,
+  performs a quick format, i.e. only resets the file system without low-level format.
+* `monitor` <br/>
+  Enter the low-level disk monitor (see the "Low-level disk monitor" section below).
+* `send filename` (only available if `#define USE_XMODEM` is enabled at the top of ArduinoFDC.ino)
+  Send the specified file via XModem protocol. See the "XModem" section below for more details.
+* `receive filename` (only available if `#define USE_XMODEM` is enabled at the top of ArduinoFDC.ino)
+  Receive the specified file via XModem protocol. See the "XModem" section below for more details.
+
+
+## Low-level disk monitor
+
+Like ArduDOS, the low-level monitor is easy to use with the Arduino serial monitor. 
+When using ArduDOS (i.e. `#define USE_ARDUDOS` is enabled at the top of ArduinoFDC.ino),
+use the "monitor" command to enter the low-level monitor. 
+
+If ArduDOS is not enabled then the sketch drops directly into the disk monitor mode.
+Set Arduino's serial monitor to 115200 baud to connect.
+
+When running, the monitor will show a command prompt. Enter your command in the
 serial monitor's input line and press *Enter* to execute the command.
 
 The following commands are supported:
@@ -218,12 +272,10 @@ The following commands are supported:
   Write the current buffer contents to the sector specified by track/sector/side
   and verify the data after writing. Shows "Ok" or "Error" status after execution.
   If the *side* parameter is left out it defaults to zero.
-* `f [0/1]` <br/>
-  Format the disk. If the *0/1* parameter is 1 then also initialize an empty DOS
-  file system on the disk. The disk should be readable and writable on a DOS/Windows 
-  computer after doing so. If the parameter is 0 then no filesystem is written. Sectors
-  on the disk will be readable/writable but the disk will not be recognized by DOS/Windows.
-  If the parameter is left out it defaults to 0.
+* `f` <br/>
+  Low-level format the disk. No file system is initialized, all sectors are filled
+  with 0xF6. To format and/or add a file system use the "format" command in ArduDOS
+  (see ArduDOS section above).
 * `b` <br/>
   Show the current buffer content
 * `B [n]` <br/>
@@ -244,9 +296,28 @@ The following commands are supported:
 * `t 0/1/2/3/4` <br/>
   Set the drive type of the current drive, where 0/1/2/3/4 stands for the drive type
   as listed (in the same order) in section "Supported disk/drive types" above.
-* `c [0/1]` <br/>
-  Copy content of drive A to drive B. If the *0/1* parameter is 1 then verify the
-  written data (much slower). If the parameter is left out it defaults to 0.
+* `S` (only available if `#define USE_XMODEM` is enabled at the top of ArduinoFDC.ino)</br>
+  Read all sectors of the current disk and transmit them via XModem protocol. See 
+  the "XModem" section below for more details.
+* `R` (only available if `#define USE_XMODEM` is enabled at the top of ArduinoFDC.ino)</br>
+  Receive a disk image via XModem and write it to the current disk. See 
+  the "XModem" section below for more details.
+* `x` (only if the monitor is entered from ArduDOS via the "monitor" command)</br>
+  Exit the monitor and return to ArduDOS.
+
+## XModem
+
+Both ArduiDOS and the low-level monitor can transmit and receive data via the XModem protocol.
+If you want to use this functionality, first un-comment the `#define USE_XMODEM` setting at
+the top of file ArduinoFDC.ino and re-upload the sketch.
+
+Use a terminal program that supports XModem to send/receive the data. I recommend TeraTerm.
+First start the transfer on the controller then initiate the XModem send/receive function in
+the terminal program. 
+
+Note that *no error messages* can be displayed during the XModem transfers since the transfer 
+takes place over the same serial connection as the terminal. If the transfer stops prematurely
+and nothing is shown in the terminal, pressing ENTER will get the command prompt back.
 
 ## Troubleshooting
 
@@ -267,3 +338,9 @@ to pins on the Arduino.
 8 | S_NOTRACK0  | When trying to move the read head to track 0, the TRACK0 signal was not seen, even after stepping more than 80 tracks. | - pins STEP (2), STEPDIR (3), SELECT (5/13) or TRACK0 (11) not properly connected
 9 | S_VERIFY    | When reading back data that was just written, the data did not match | - pins WRITEGATE (10) or WRITEDATA (9) not properly connected<br/>- disk is write protected and WRITEPROTECT (12) pin is not connected <br/> - bad disk
 10 | S_READONLY | Attempting to write to a write-protected disk | - disk is write protected
+
+## Acknowledgements
+
+The ArduDOS functionality would not have been possible without ChaN's brilliant [FatFS](http://elm-chan.org/fsw/ff/00index_e.html) library.
+
+The XModem communication uses the arduino-xmodem code available at https://code.google.com/archive/p/arduino-xmodem.
