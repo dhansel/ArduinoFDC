@@ -151,7 +151,7 @@ static bool wait_index_hole()
            if( ++ctr == 0 )
             {
               // we have tried for 256 * 4.096ms = 1.048 seconds to find a index hole
-              // one rotation is 200ms so we have tried for 5 full rotations => give up
+              // one rotation is 166 or 200ms so we have tried for 5 or more rotations => give up
 #ifdef DEBUG
               Serial.println(F("No index hole signal!")); Serial.flush();
 #endif
@@ -1192,11 +1192,14 @@ byte ArduinoFDCClass::getBitLength()
         case DT_5_DDonHD:
           {
             TCCR1A = 0;
-            TCCR1B = bit(CS10) | bit(CS11);  // start timer 1 with /64 prescaler
+            TCCR1B = bit(CS10);  // start timer 1 with /1 prescaler
             TCCR1C = 0;
 
-            // retrun wirht error if index hole can't be found
+            // return with error if index hole can't be found
             if( !wait_index_hole() ) return 0;
+
+            // switch timer to /64 prescaler
+            TCCR1B = bit(CS10) | bit(CS11);
 
             // build average tick count (4us/tick) over 4 revolutions
             unsigned long l = 0;
@@ -1430,30 +1433,32 @@ byte ArduinoFDCClass::formatDisk(byte fromTrack, byte toTrack)
   // assert DRIVE_SELECT
   driveSelect(LOW);
 
-  // go to track 0
-  if( !step_to_track0() )
-    return S_NOTRACK0;
-
   // get MFM bit length (in processor cycles)
   byte bitLength = getBitLength();
-  if( bitLength==0 ) return S_NOTREADY;
 
   // set up timer1
   TCCR1A = 0;
-  TCCR1B = bit(CS10); // select falling edge input capture, prescaler 1, no output compare
+  TCCR1B = bit(CS10); // prescaler 1
   TCCR1C = 0;
 
-  delay(100);
-
-  byte driveType = m_driveType[m_currentDrive];
-  byte numTracks = geometry[driveType].numTracks;
-  for(byte track=fromTrack; track<=toTrack && track<numTracks; track++)
+  if( bitLength==0 || !wait_index_hole() )
+    res = S_NOTREADY;
+  else if( is_write_protected() )
+    res = S_READONLY;
+  else if( !step_to_track0() )
+    res = S_NOTRACK0;
+  else
     {
-      digitalWriteOC(PIN_SIDE, HIGH);
-      res = format_track(driveType, bitLength, track, 0); if( res!=S_OK ) break;
-      digitalWriteOC(PIN_SIDE, LOW);
-      res = format_track(driveType, bitLength, track, 1); if( res!=S_OK ) break;
-      if( track<numTracks-1 ) step_tracks(driveType, 1);
+      byte driveType = m_driveType[m_currentDrive];
+      byte numTracks = geometry[driveType].numTracks;
+      for(byte track=fromTrack; track<=toTrack && track<numTracks; track++)
+        {
+          digitalWriteOC(PIN_SIDE, HIGH);
+          res = format_track(driveType, bitLength, track, 0); if( res!=S_OK ) break;
+          digitalWriteOC(PIN_SIDE, LOW);
+          res = format_track(driveType, bitLength, track, 1); if( res!=S_OK ) break;
+          if( track<numTracks-1 ) step_tracks(driveType, 1);
+        }
     }
 
   // de-assert DRIVE_SELECT
