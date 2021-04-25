@@ -26,11 +26,11 @@ Arduino pin  | Floppy Drive pin | Notes  | Function
 4            | 10               | 1,3    | Motor Enable A
 5            | 14               | 1,3    | Drive Select A
 6            | 32               | 3      | Side Select
-7            | 8 	              | 2      | Index
+7            | 8 	              |        | Index
 8            | 30               | 2      | Read Data
 9            | 22               |        | Write Data
 10           | 24               |        | Write Gate (write enable)
-11           | 26               | 2,3    | Track 0
+11           | 26               | 3      | Track 0
 12           | 28               | 3,4    | Write Protect signal
 13           | 2                | 3,4,5  | Density select signal
 A0           | 16               | 1,3,4  | Motor Enable B
@@ -46,13 +46,14 @@ for "Floppy drive twist" for more information).
 **Note 2:**
 It is **highly** recommended (but not entirely necessary) to add a 1k 
 pull-up resistor to +5V to this signal. The Arduino's built-in pull-up
-resistors are very weak and may not pull the signal up quickly enough. 
-It worked for me without the resistors but results may vary for different
-drives.
+resistors are very weak and may not pull the signal up quickly enough.
+Without the resistor you may encounter read errors (bad CRC, header not found),
+especially when reading HD disks.
 
 **Note 3:**
-This signal can easily be moved to a different pin by re-defining the corresponding
-`#define PIN_XXX ...` statement at the top of ArduinoFDC.cpp
+This signal can easily be moved to a different pin on the Arduino by 
+changing the corresponding `#define PIN_XXX ...` statement at the top 
+of ArduinoFDC.cpp
 
 **Note 4:**
 This signal is not essential for the functionality of the controller.
