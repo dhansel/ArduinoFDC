@@ -1,8 +1,8 @@
-![ArduinoFDC Setup](setup.jpg)
+![ArduinoFDC Setup](images/setup.jpg)
 
 # ArduinoFDC
 
-This is a small library providing low-level functions which enable an
+ArduinoFDC is a small library providing low-level functions which enable an
 Arduino UNO (or any ATMega328P) to control a 3.5" or 5.25" floppy disk drive.
 It supports reading and writing disks at the sector level as well as 
 formatting disks.
@@ -252,6 +252,7 @@ The following commands are available:
 * `receive filename` (only available if `#define USE_XMODEM` is enabled at the top of ArduinoFDC.ino)<br/>
   Receive the specified file via XModem protocol. See the "XModem" section below for more details.
 
+![ArduDOS session](images/ArduDOS.png)
 
 ## Low-level disk monitor
 
@@ -309,7 +310,7 @@ The following commands are supported:
 
 ## XModem
 
-Both ArduiDOS and the low-level monitor can transmit and receive data via the XModem protocol.
+Both ArduDOS and the low-level monitor can transmit and receive data via the XModem protocol.
 If you want to use this functionality, first un-comment the `#define USE_XMODEM` setting at
 the top of file ArduinoFDC.ino and re-upload the sketch.
 
