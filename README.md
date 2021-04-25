@@ -245,9 +245,9 @@ The following commands are available:
   performs a quick format, i.e. only resets the file system without low-level format.
 * `monitor` <br/>
   Enter the low-level disk monitor (see the "Low-level disk monitor" section below).
-* `send filename` (only available if `#define USE_XMODEM` is enabled at the top of ArduinoFDC.ino)
+* `send filename` (only available if `#define USE_XMODEM` is enabled at the top of ArduinoFDC.ino)<br/>
   Send the specified file via XModem protocol. See the "XModem" section below for more details.
-* `receive filename` (only available if `#define USE_XMODEM` is enabled at the top of ArduinoFDC.ino)
+* `receive filename` (only available if `#define USE_XMODEM` is enabled at the top of ArduinoFDC.ino)<br/>
   Receive the specified file via XModem protocol. See the "XModem" section below for more details.
 
 
