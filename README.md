@@ -131,6 +131,9 @@ readSector/writeSector/formatDisk. Calling `begin()` selects drive A.
 Returns 'false' if trying to select drive 1 when the corresponding control
 pins are commented out in ArduinoFDC.cpp
 
+#### `byte ArduinoFDC.selectedDrive()`
+Returns which drive is currently selected, A (0) or B (1).
+
 #### `void ArduinoFDC.setDriveType(driveType)`
 Sets the disk/drive type for the currently selected drive. For possible drive types see
 the "[Supported disk/drive types](#supported-diskdrive-types)" section above. 
@@ -147,6 +150,31 @@ Returns the number of tracks for the drive type of the currently selected drive.
 
 #### `byte ArduinoFDC.numSectors()`
 Returns the number of sectors per track for the drive type of the currently selected drive.
+
+#### `bool ArduinoFDC.haveDisk()`
+Returns true if a disk is in the drive. This is done by looking for the index
+hole. If the drive motor is not currently running this haveDisk() will temporarily
+turn it on.
+
+#### `bool ArduinoFDC.isWriteProtected()`
+Returns true if the disk is write protected. If no disk is in the drive then
+the result may be either true or false. If the WRITE PROTECT signal is not connected
+then the result is always false.
+
+#### `void ArduinoFDC.motorOn()`
+Turns the disk drive motor on. 
+
+The `readSector`/`writeSector`/`formatDisk` functions will turn the motor on **and** back off 
+automatically if it is not already running. Note that turning on the motor also includes
+a one second delay to allow it to spin up.  If you are reading/writing multiple sectors
+you may want to use the `motorOn` and `motorOff` functions to manually turn the motor on
+and off.
+
+#### `void ArduinoFDC.motorOff()`
+Turns the disk drive motor off. 
+
+#### `bool ArduinoFDC.motorRunning()`
+Returns *true* if the disk drive motor is currently running and *false* if not.
 
 #### `byte ArduinoFDC.readSector(byte track, byte side, byte sector, byte *buffer)`
 Reads data from a sector from the flopy disk. Always reads a full sector (512 bytes).
@@ -190,21 +218,6 @@ The function returns 0 if formatting succeeded. Otherwise an error code is retur
 is performed. The only possible error conditions are missing track 0 or index hole signals.
 You can use the `readSector`function to verify that data can be read properly
 after formatting.
-
-#### `void ArduinoFDC.motorOn()`
-Turns the disk drive motor on. 
-
-The `readSector`/`writeSector`/`formatDisk` functions will turn the motor on **and** off 
-automatically if it is not already running. Note that turning on the motor also includes
-a one second delay to allow it to spin up.  If you are reading/writing multiple sectors
-you may want to use the `motorOn` and `motorOff` functions to manually turn the motor on
-and off.
-
-#### `void ArduinoFDC.motorOff()`
-Turns the disk drive motor off. 
-
-#### `bool ArduinoFDC.motorRunning()`
-Returns *true* if the disk drive motor is currently running and *false* if not.
 
 ## Test / Demo
 
