@@ -6,7 +6,7 @@ ArduinoFDC is a floppy disk controller implemented on an Arduino UNO (or any ATM
 
 It consists of three parts: 
 
-1. A library providing low-level functions to allow reading and writing disks at the 
+1. A [library](#library-functions) providing low-level functions to allow reading and writing disks at the 
 sector level as well as low-level formatting disks.
 2. Integration into ChaN's brilliant [FatFS](http://elm-chan.org/fsw/ff/00index_e.html)
 library to provide file-level functions for reading and writing files and directories
@@ -133,14 +133,14 @@ pins are commented out in ArduinoFDC.cpp
 
 #### `void ArduinoFDC.setDriveType(driveType)`
 Sets the disk/drive type for the currently selected drive. For possible drive types see
-the "Supported disk/drive types" section above. 
+the "[Supported disk/drive types](supported-disk-drive-types)" section above. 
 
 #### `byte ArduinoFDC.getDriveType(driveType)`
 Returns the drive type of the currently selected drive.
 
 #### `void ArduinoFDC.setDensityPinMode(mode)`
 Sets the function of the DENSITY pin for the currently selected drive.
-See section "Density signal" above.
+See section "[Density control signal](density-control-signal)" above.
 
 #### `byte ArduinoFDC.numTracks()`
 Returns the number of tracks for the drive type of the currently selected drive.
@@ -158,7 +158,7 @@ Reads data from a sector from the flopy disk. Always reads a full sector (512 by
 * The "buffer" parameter must be a pointer to a byte array of size (at least) 516 bytes.
 
 The function returns 0 if reading succeeded. Otherwise an error code is returned
-(see Troubleshooting section below)
+(see [Troubleshooting](#troubleshooting) section below)
 
 **IMPORTANT:** On successful return, the sector data that was read will be in buffer[1..512] (**NOT** buffer[0..511])
 
@@ -175,7 +175,7 @@ If the "verify" parameter is *false* then no verification is done. The function 
 if the proper sector location on disk can not be found before writing.
 
 The function returns 0 if writing succeeded. Otherwise an error code is returned
-(see Troubleshooting section below)
+(see [Troubleshooting](#troubleshooting) section below)
 
 **IMPORTANT:** The sector data to be written must be in buffer[1..512] (**NOT** buffer[0..511])
 
@@ -245,7 +245,7 @@ The following commands are available:
   Remove the specified directory.
 * `disktype 0/1/2/3/4` <br/>
   Set the drive type of the current drive, where 0/1/2/3/4 stands for the drive type
-  as listed (in the same order) in section "Supported disk/drive types" above.
+  as listed (in the same order) in section "[Supported disk/drive types](supported-disk-drive-types)" above.
 * `format [/q]` <br/>
   Low-level format a disk and initialize a FAT file system. If `/q` argument is given,
   performs a quick format, i.e. only resets the file system without low-level format.
