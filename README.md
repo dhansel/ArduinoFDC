@@ -10,7 +10,7 @@ It consists of three parts:
 sector level as well as low-level formatting disks.
 2. Integration into ChaN's brilliant [FatFS](http://elm-chan.org/fsw/ff/00index_e.html)
 library to provide file-level functions for reading and writing files and directories
-in a FAT (MS-DOS) file system.
+in a FAT (MS-DOS) file system and a high-level format function to initialize a FAT file system.
 3. An example sketch implementing [ArduDOS](#ardudos), a (very) small DOS environment for browsing
 a FAT file system as well as a [low-level disk monitor](#low-level-disk-monitor) to access sector data on the disk,
 including the ability to transfer whole disks or single files via the XModem protocol.
