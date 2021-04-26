@@ -2,21 +2,22 @@
 
 ![ArduinoFDC Setup](images/setup.jpg)
 
-ArduinoFDC is a small library providing low-level functions which enable an
-Arduino UNO (or any ATMega328P) to control a 3.5" or 5.25" floppy disk drive.
-It supports reading and writing disks at the sector level as well as 
-formatting disks.
+ArduinoFDC is a floppy disk controller implemented on an Arduino UNO (or any ATMega328P).
 
-This controller works with double density (DD) as well as high density (HD)
+It consists of three parts: 
+
+1. A library providing low-level functions to allow reading and writing disks at the 
+sector level as well as low-level formatting disks.
+2. Integration into ChaN's brilliant [FatFS](http://elm-chan.org/fsw/ff/00index_e.html)
+library to provide file-level functions for reading and writing files and directories
+in a FAT (MS-DOS) file system.
+3. An example sketch implementing [ArduDOS](#ardudos), a (very) small DOS environment for browsing
+a FAT file system as well as a [low-level disk monitor](#low-level-disk-monitor) to access sector data on the disk,
+including the ability to transfer whole disks or single files via the XModem protocol.
+
+ArduinoFDC works with double density (DD) as well as high density (HD)
 disk drives. It can read/write 5.25" DD (360KB), 5.25" HD (1.2MB), 3.5" DD (720KB)
 and 3.5" HD (1.44MB) disks.
-
-The library comes with an example sketch which implements "ArduDOS", a (very) 
-minimal DOS to browse/read/write the files on FAT (MS-DOS) formatted disks
-directly on the Arduino. Also included is a low-level disk monitor to directly
-access sector data on the disk.
-
-For details see the corresponding sections below.
 
 ## Wiring:
 
