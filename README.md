@@ -11,7 +11,7 @@ This controller works with double density (DD) as well as high density (HD)
 disk drives. It can read/write 5.25" DD (360KB), 5.25" HD (1.2MB), 3.5" DD (720KB)
 and 3.5" HD (1.44MB) disks.
 
-The library comes with an example sketch which provieds "ArduDOS", a (very) 
+The library comes with an example sketch which implements "ArduDOS", a (very) 
 minimal DOS to browse/read/write the files on FAT (MS-DOS) formatted disks
 directly on the Arduino. Also included is a low-level disk monitor to directly
 access sector data on the disk.
