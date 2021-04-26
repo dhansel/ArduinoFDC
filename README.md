@@ -1,6 +1,6 @@
-![ArduinoFDC Setup](images/setup.jpg)
-
 # ArduinoFDC
+
+![ArduinoFDC Setup](images/setup.jpg)
 
 ArduinoFDC is a small library providing low-level functions which enable an
 Arduino UNO (or any ATMega328P) to control a 3.5" or 5.25" floppy disk drive.
