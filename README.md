@@ -215,16 +215,19 @@ In addition to the `ArduinoFDC.h` and `ArduinoFDC.cpp` library files, a demo ske
 
 ## ArduDOS
 
-ArduDOS is a (very) minimal DOS that allows the user to browse the file system
+ArduDOS is a minimal DOS that allows the user to browse the file system
 on the disk and read/write files. The basic functionality is modeled on MS-DOS
-with some exceptions (all of these were necessay to because of the Arduino's 
-limited memory):
-1) All commands operate ONLY on the currently selected drive. If two drives are
+with some exceptions:
+1. All commands operate ONLY on the currently selected drive. If two drives are
    connected then use "b:" or "a:" to switch drives.
-2) The working directory is ALWAYS the top-level directory of the disk. No "cd"
+2. The working directory is ALWAYS the top-level directory of the disk. No "cd"
    command is available to change the directory. Therefore, all paths given as
    arguments to commands must be relative to the top-level directory.
+3. Disk changes are not automatically detected. After changing a disk, re-select
+   the current drive (e.g. "a:") to notify ArduDOS of the change.
   
+ArduDOS is easy to access from either Arduio's serial monitor or any other
+serial terminal. Set the monitor or terminal's baud rate to 115200 before connecting.
 The following commands are available:
 
 * `dir [directory]` <br/>
