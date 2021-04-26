@@ -119,7 +119,7 @@ can use the following functions:
 
 #### `void ArduinoFDC.begin(driveAtype, driveBtype)`
 Initializes the Arduino pins used by the controller. For possible drive types see
-the "[Supported disk/drive types](#supported-disk-drive-types)" section above. If left out both types default to
+the "[Supported disk/drive types](#supported-diskdrive-types)" section above. If left out both types default to
 ArduinoFDC::DT_3_HD.
 
 #### `void ArduinoFDC.end()`
@@ -133,7 +133,7 @@ pins are commented out in ArduinoFDC.cpp
 
 #### `void ArduinoFDC.setDriveType(driveType)`
 Sets the disk/drive type for the currently selected drive. For possible drive types see
-the "[Supported disk/drive types](#supported-disk-drive-types)" section above. 
+the "[Supported disk/drive types](#supported-diskdrive-types)" section above. 
 
 #### `byte ArduinoFDC.getDriveType(driveType)`
 Returns the drive type of the currently selected drive.
@@ -301,7 +301,7 @@ The following commands are supported:
   selected drive is shown.
 * `t 0/1/2/3/4` <br/>
   Set the drive type of the current drive, where 0/1/2/3/4 stands for the drive type
-  as listed (in the same order) in section "(Supported disk/drive types)[#supported-disk-drive-types]" above.
+  as listed (in the same order) in section "[Supported disk/drive types](#supported-diskdrive-types)" above.
 * `S` (only available if `#define USE_XMODEM` is enabled at the top of ArduinoFDC.ino)</br>
   Read all sectors of the current disk and transmit them via XModem protocol. See 
   the "XModem" section below for more details.
