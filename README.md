@@ -249,11 +249,11 @@ The following commands are available:
   Low-level format a disk and initialize a FAT file system. If `/q` argument is given,
   performs a quick format, i.e. only resets the file system without low-level format.
 * `monitor` <br/>
-  Enter the low-level disk monitor (see the "Low-level disk monitor" section below).
+  Enter the low-level disk monitor (see the "[Low-level disk monitor](low-level-disk-monitor)" section below).
 * `send filename` (only available if `#define USE_XMODEM` is enabled at the top of ArduinoFDC.ino)<br/>
-  Send the specified file via XModem protocol. See the "XModem" section below for more details.
+  Send the specified file via XModem protocol. See the "[XModem](#xmodem)" section below for more details.
 * `receive filename` (only available if `#define USE_XMODEM` is enabled at the top of ArduinoFDC.ino)<br/>
-  Receive the specified file via XModem protocol. See the "XModem" section below for more details.
+  Receive the specified file via XModem protocol. See the "[XModem](#xmodem)" section below for more details.
 
 ![ArduDOS session](images/ArduDOS.png)
 
@@ -304,12 +304,12 @@ The following commands are supported:
   as listed (in the same order) in section "[Supported disk/drive types](#supported-diskdrive-types)" above.
 * `S` (only available if `#define USE_XMODEM` is enabled at the top of ArduinoFDC.ino)</br>
   Read all sectors of the current disk and transmit them via XModem protocol. See 
-  the "XModem" section below for more details.
+  the "[XModem](#xmodem)" section below for more details.
 * `R` (only available if `#define USE_XMODEM` is enabled at the top of ArduinoFDC.ino)</br>
   Receive a disk image via XModem and write it to the current disk. See 
-  the "XModem" section below for more details.
+  the "[XModem](#xmodem)" section below for more details.
 * `x` (only if the monitor is entered from ArduDOS via the "monitor" command)</br>
-  Exit the monitor and return to ArduDOS.
+  Exit the monitor and return to [ArduDOS](#ardudos).
 
 ## XModem
 
