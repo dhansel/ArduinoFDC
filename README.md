@@ -73,7 +73,7 @@ statement at the top of ArduinoFDC.cpp
 **Note 5:**
 See section "DENSITY control signal" below.
 
-## Supported disk/drive types
+## Supported disk types
 
 To properly read/write data, the library must be configured for the drive/disk
 combination that is being used. The drive type can be passed into the `begin` functions
@@ -119,7 +119,7 @@ can use the following functions:
 
 #### `void ArduinoFDC.begin(driveAtype, driveBtype)`
 Initializes the Arduino pins used by the controller. For possible drive types see
-the "[Supported disk/drive types](supported-disk-drive-types)" section above. If left out both types default to
+the "[Supported disk types](supported-disk-types)" section above. If left out both types default to
 ArduinoFDC::DT_3_HD.
 
 #### `void ArduinoFDC.end()`
