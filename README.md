@@ -8,7 +8,7 @@ It consists of three parts:
 
 1. A [library](#library-functions) providing low-level functions to allow reading and writing disks at the 
 sector level as well as low-level formatting disks.
-2. Integration into ChaN's brilliant [FatFS](http://elm-chan.org/fsw/ff/00index_e.html)
+2. Integration of ChaN's brilliant [FatFS](http://elm-chan.org/fsw/ff/00index_e.html)
 library to provide file-level functions for reading and writing files and directories
 in a FAT (MS-DOS) file system and a high-level format function to initialize a FAT file system.
 3. An example sketch implementing [ArduDOS](#ardudos), a (very) small DOS environment for browsing
@@ -114,8 +114,12 @@ to the proper level.
 
 ## Library functions:
 
-After adding ArduinoFDC.h and ArduinoFDC.cpp to your Arduino sketch you
-can use the following functions:
+To use the low-level disk access library functions (listed below), copy ArduinoFDC.h and ArduinoFDC.cpp
+into your Arduino sketch directory and add `#include "ArduinoFDC.h"` to your sketch.
+
+To use the FAT file system functions, additionally copy ff.h, ff.c, ffconf.h, diskio.h and diskio.cpp.
+Then add `#include "ff.h"` and  `#include "ArduinoFDC.h"` to your sketch. For documentation of the FatFS
+functions refer to the [FatFS documentation](http://elm-chan.org/fsw/ff/00index_e.html).
 
 #### `void ArduinoFDC.begin(driveAtype, driveBtype)`
 Initializes the Arduino pins used by the controller. For possible drive types see
@@ -218,13 +222,6 @@ The function returns 0 if formatting succeeded. Otherwise an error code is retur
 is performed. The only possible error conditions are missing track 0 or index hole signals.
 You can use the `readSector`function to verify that data can be read properly
 after formatting.
-
-## Test / Demo
-
-In addition to the `ArduinoFDC.h` and `ArduinoFDC.cpp` library files, a demo sketch
-`ArduinoFDC.ino` is provided. The sketch provides two interactive functions:
-1) A (very) minimal DOS to access files on the disk
-2) A low-level disk monitor to read/write sector data on a disk
 
 ## ArduDOS
 
