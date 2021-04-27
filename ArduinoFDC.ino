@@ -17,6 +17,9 @@
 // Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 // -----------------------------------------------------------------------------
 
+#include "ArduinoFDC.h"
+#include "ff.h"
+
 
 // comment this out to remove high-level ArduDOS functions
 #define USE_ARDUDOS
@@ -26,27 +29,6 @@
 
 // comenting this out will remove support for XModem data transfers
 //#define USE_XMODEM
-
-
-#if !defined(USE_ARDUDOS) && !defined(USE_MONITOR)
-#error "Need at least one of USE_ARDUDOS and USE_MONITOR"
-#endif
-
-#include "ArduinoFDC.h"
-
-#ifdef USE_ARDUDOS
-
-#include "ff.h"
-#include "diskio.h"
-static FATFS FatFs;
-static FIL   FatFsFile;
-#define databuffer FatFs.win
-
-#else
-
-static byte databuffer[516];
-
-#endif
 
 
 // -------------------------------------------------------------------------------------------------
@@ -135,6 +117,42 @@ bool confirm_formatting()
 }
 
 
+void print_drive_type(byte n)
+{
+  switch( n )
+    {
+    case ArduinoFDCClass::DT_5_DD: Serial.print(F("5.25\" DD")); break;
+    case ArduinoFDCClass::DT_5_DDonHD: Serial.print(F("5.25\" DD disk in HD drive")); break;
+    case ArduinoFDCClass::DT_5_HD: Serial.print(F("5.25\" HD")); break;
+    case ArduinoFDCClass::DT_3_DD: Serial.print(F("3.5\" DD")); break;
+    case ArduinoFDCClass::DT_3_HD: Serial.print(F("3.5\" HD")); break;
+    default: Serial.print(F("Unknown"));
+    }
+}
+
+
+void print_error(byte n)
+{
+  Serial.print(F("Error: "));
+  switch( n )
+    {
+    case S_OK        : Serial.print(F("No error")); break;
+    case S_NOTINIT   : Serial.print(F("ArduinoFDC.begin() was not called")); break;
+    case S_NOTREADY  : Serial.print(F("Drive not ready")); break;
+    case S_NOSYNC    : Serial.print(F("No sync marks found")); break;
+    case S_NOHEADER  : Serial.print(F("Sector header not found")); break;
+    case S_INVALIDID : Serial.print(F("Data record has unexpected id")); break;
+    case S_CRC       : Serial.print(F("Data checksum error")); break;
+    case S_NOINDEX   : Serial.print(F("No index hole detected")); break;
+    case S_NOTRACK0  : Serial.print(F("No track 0 signal detected")); break;
+    case S_VERIFY    : Serial.print(F("Verify after write failed")); break;
+    case S_READONLY  : Serial.print(F("Disk is write protected")); break;
+    default          : Serial.print(F("Unknonwn error")); break;
+    }
+  Serial.println('!');
+}
+
+
 // -------------------------------------------------------------------------------------------------
 // XModem data transfer functions
 // -------------------------------------------------------------------------------------------------
@@ -159,25 +177,417 @@ void sendData(const char *data, int size)
 
 
 // -------------------------------------------------------------------------------------------------
+// High-level ArduDOS 
+// -------------------------------------------------------------------------------------------------
+
+
+#ifdef USE_ARDUDOS
+
+static FATFS FatFs;
+static FIL   FatFsFile;
+
+#define TEMPBUFFER_SIZE 80
+byte tempbuffer[TEMPBUFFER_SIZE];
+
+
+#ifdef USE_XMODEM
+
+#include "XModem.h"
+FRESULT xmodem_status = S_OK;
+
+bool xmodemHandlerSend(unsigned long no, char* data, int size)
+{
+  UINT br;
+  xmodem_status = f_read(&FatFsFile, data, size, &br);
+
+  // if there is an error or there is nothing more to read then return
+  if( xmodem_status != FR_OK || br==0 ) return false;
+  
+  // XMODEM sends blocks of 128 bytes so if we have less than that
+  // fill the rest of the buffer with EOF (ASCII 26) characters
+  while( br<size ) data[br++]=26;
+
+  return true;
+}
+
+
+bool xmodemHandlerReceive(unsigned long no, char* data, int size)
+{
+  UINT bw;
+  xmodem_status = f_write(&FatFsFile, data, size, &bw);
+
+  // if there is an error or then return
+  if( xmodem_status != FR_OK ) return false;
+  
+  return true;
+}
+
+#endif
+
+
+void print_ff_error(FRESULT fr)
+{
+  Serial.print(F("Error #")); 
+  Serial.print(fr);
+  Serial.print(F(": "));
+  switch( fr )
+    {
+    case FR_DISK_ERR: Serial.print(F("Low-level disk error")); break;
+    case FR_INT_ERR: Serial.print(F("Internal error")); break;
+    case FR_NOT_READY: Serial.print(F("Drive not ready")); break;
+    case FR_NO_FILE: Serial.print(F("File not found")); break;
+    case FR_NO_PATH: Serial.print(F("Path not found")); break;
+    case FR_INVALID_NAME: Serial.print(F("Invalid path format")); break;
+    case FR_DENIED: Serial.print(F("Directory full")); break;
+    case FR_EXIST: Serial.print(F("File exists")); break;
+    case FR_INVALID_OBJECT: Serial.print(F("Invalid object")); break;
+    case FR_WRITE_PROTECTED: Serial.print(F("Disk is write protected")); break;
+    case FR_INVALID_DRIVE: Serial.print(F("Invalid drive")); break;
+    case FR_NOT_ENABLED: Serial.print(F("The volume has no work area")); break;
+    case FR_NO_FILESYSTEM: Serial.print(F("Not a FAT file system")); break;
+    case FR_MKFS_ABORTED: Serial.print(F("Format aborted due to error")); break;
+    case FR_NOT_ENOUGH_CORE: Serial.print(F("Out of memory")); break;
+    case FR_INVALID_PARAMETER: Serial.print(F("Invalid parameter")); break;
+    default: Serial.print(F("Unknown")); break;
+    }
+  Serial.println();
+}
+
+
+void arduDOS()
+{
+  UINT count;
+  FRESULT fr;
+
+  f_mount(&FatFs, "0:", 0);
+  while( 1 )
+    {
+      Serial.println();
+      Serial.write('A'+ArduinoFDC.selectedDrive());
+      Serial.print(F(":>"));
+      char *cmd = read_user_cmd(tempbuffer, TEMPBUFFER_SIZE);
+
+      if( strcmp_PF(cmd, F("a:"))==0 || strcmp_PF(cmd, F("b:"))==0 )
+        {
+          byte drive = cmd[0]-'a';
+          if( drive != ArduinoFDC.selectedDrive() )
+            {
+              ArduinoFDC.motorOff();
+              motor_timeout = 0;
+              ArduinoFDC.selectDrive(drive);
+            }
+
+          f_mount(&FatFs, "0:", 0);
+        }
+      else if( strncmp_PF(cmd, F("dir"), 3)==0 )
+        {
+          DIR dir;
+          FILINFO finfo;
+
+          ArduinoFDC.motorOn();
+          fr = f_opendir(&dir, strlen(cmd)<5 ? "0:\\" : cmd+4);
+          if (fr == FR_OK) 
+            {
+              count = 0;
+              while(1)
+                {
+                  fr = f_readdir(&dir, &finfo);
+                  if( fr!=FR_OK || finfo.fname[0]==0 )
+                    break;
+                  
+                  char *c = finfo.fname;
+                  byte col = 0;
+                  while( *c!=0 && *c!='.' ) { Serial.write(toupper(*c)); col++; c++; }
+                  while( col<9 ) { Serial.write(' '); col++; }
+                  if( *c=='.' )
+                    {
+                      c++;
+                      while( *c!=0 ) { Serial.write(toupper(*c)); col++; c++; }
+                    }
+                  while( col<14 ) { Serial.write(' '); col++; }
+                  if( finfo.fattrib & AM_DIR )
+                    Serial.println(F("<DIR>"));
+                  else
+                    Serial.println(finfo.fsize);
+                  count++;
+                }
+
+              f_closedir(&dir);
+
+              if( fr==FR_OK )
+                {
+                  if( count==0 ) Serial.println(F("No files."));
+                  
+                  FATFS *fs;
+                  DWORD fre_clust, fre_sect, tot_sect;
+                  fr = f_getfree("0:", &fre_clust, &fs);
+
+                  if( fr==FR_OK )
+                    { Serial.print(fre_clust * fs->csize * 512); Serial.println(F(" bytes free.")); }
+                }
+
+              if( fr!=FR_OK )
+                print_ff_error(fr);
+            }
+          else
+            print_ff_error(fr);
+        }
+      else if( strncmp_PF(cmd, F("type "), 5)==0 )
+        {
+          ArduinoFDC.motorOn();
+          fr = f_open(&FatFsFile, cmd+5, FA_READ);
+          if( fr == FR_OK )
+            {
+              count = 1;
+              while( count>0 )
+                {
+                  fr = f_read(&FatFsFile, tempbuffer, TEMPBUFFER_SIZE, &count);
+                  if( fr == FR_OK )
+                    Serial.write(tempbuffer, count);
+                  else
+                    print_ff_error(fr);
+                }
+              f_close(&FatFsFile);
+            }
+          else
+            print_ff_error(fr);
+        }
+      else if( strncmp_PF(cmd, F("dump "), 5)==0 )
+        {
+          ArduinoFDC.motorOn();
+          fr = f_open(&FatFsFile, cmd+5, FA_READ);
+          if( fr == FR_OK )
+            {
+              count = 1;
+              int offset = 0;
+              while( count>0 )
+                {
+                  fr = f_read(&FatFsFile, tempbuffer, (TEMPBUFFER_SIZE/16)*16, &count);
+                  if( fr == FR_OK )
+                    { dump_buffer(offset, tempbuffer, count); offset += count; }
+                  else
+                    print_ff_error(fr);
+                }
+              f_close(&FatFsFile);
+            }
+          else
+            print_ff_error(fr);
+        }
+      else if( strncmp_PF(cmd, F("write "), 6)==0 )
+        {
+          ArduinoFDC.motorOn();
+          fr = f_open(&FatFsFile, cmd+6, FA_WRITE | FA_CREATE_NEW);
+          if( fr == FR_OK )
+            {
+              while( true )
+                {
+                  char *s = read_user_cmd(tempbuffer, TEMPBUFFER_SIZE);
+                  if( s[0] )
+                    {
+                      fr = f_write(&FatFsFile, s, strlen(cmd), &count);
+                      if( fr==FR_OK ) fr = f_write(&FatFsFile, "\r\n", 2, &count);
+                      if( fr!=FR_OK ) print_ff_error(fr);
+                    }
+                  else
+                    break;
+                }
+
+              f_close(&FatFsFile);
+            }
+          else
+            print_ff_error(fr);
+        }
+      else if( strncmp_PF(cmd, F("del "), 4)==0 )
+        {
+          ArduinoFDC.motorOn();
+          fr = f_unlink(cmd+4);
+          if( fr != FR_OK )
+            print_ff_error(fr);
+        }
+      else if( strncmp_PF(cmd, F("mkdir "), 6)==0 )
+        {
+          ArduinoFDC.motorOn();
+          fr = f_mkdir(cmd+6);
+          if( fr != FR_OK )
+            print_ff_error(fr);
+        }
+      else if( strncmp_PF(cmd, F("rmdir "), 6)==0 )
+        {
+          ArduinoFDC.motorOn();
+          fr = f_rmdir(cmd+6);
+          if( fr != FR_OK )
+            print_ff_error(fr);
+        }
+      else if( strncmp_PF(cmd, F("disktype "), 9)==0 )
+        {
+          ArduinoFDC.setDriveType(atoi(cmd+9));
+          Serial.print(F("Setting disk type for drive ")); Serial.write('A'+ArduinoFDC.selectedDrive()); 
+          Serial.print(F(" to ")); print_drive_type(ArduinoFDC.getDriveType()); Serial.println();
+          f_mount(&FatFs, "0:", 0);
+        }
+      else if( strncmp_PF(cmd, F("format"), 6)==0 )
+        {
+          MKFS_PARM param;
+          param.fmt = FM_FAT | FM_SFD; // FAT12 type, no disk partitioning
+          param.n_fat = 2;             // number of FATs
+          param.n_heads = 2;           // number of heads
+          param.n_sec_track = ArduinoFDC.numSectors(); 
+          param.align = 1;             // block alignment (not used for FAT12)
+          
+          switch( ArduinoFDC.getDriveType() )
+            {
+            case ArduinoFDCClass::DT_5_DD:
+            case ArduinoFDCClass::DT_5_DDonHD:
+              param.au_size = 1024; // bytes/cluster
+              param.n_root  = 112;  // number of root directory entries
+              param.media   = 0xFD; // media descriptor
+              break;
+              
+            case ArduinoFDCClass::DT_5_HD:
+              param.au_size = 512;  // bytes/cluster
+              param.n_root  = 224;  // number of root directory entries
+              param.media   = 0xF9; // media descriptor
+              break;
+
+            case ArduinoFDCClass::DT_3_DD:
+              param.au_size = 1024; // bytes/cluster
+              param.n_root  = 112;  // number of root directory entries
+              param.media   = 0xF9; // media descriptor
+              break;
+
+            case ArduinoFDCClass::DT_3_HD:
+              param.au_size = 512;  // bytes/cluster
+              param.n_root  = 224;  // number of root directory entries
+              param.media   = 0xF0; // media descriptor
+              break;
+            }
+          
+          if( confirm_formatting() )
+            {
+              byte st;
+              ArduinoFDC.motorOn();
+              f_unmount("0:");
+              if( strstr(cmd, "/q") || (st=ArduinoFDC.formatDisk())==S_OK )
+                {
+                  Serial.println(F("Initializing file system...\n"));
+                  FRESULT fr = f_mkfs ("0:", &param, FatFs.win, 512);
+                  if( fr != FR_OK ) print_ff_error(fr);
+                }
+              else
+                print_error(st);
+              
+              f_mount(&FatFs, "0:", 0);
+            }
+        }
+#ifdef USE_MONITOR
+      else if( strcmp_PF(cmd, F("monitor"))==0 )
+        {
+          motor_timeout = 0;
+          monitor();
+          f_mount(&FatFs, "0:", 0);
+        }
+#endif
+#ifdef USE_XMODEM
+      else if( strncmp_PF(cmd, F("receive "), 8)==0 )
+        {
+          ArduinoFDC.motorOn();
+          fr = f_open(&FatFsFile, cmd+8, FA_WRITE | FA_CREATE_NEW);
+          if( fr == FR_OK )
+            {
+              Serial.println(F("Send file via XModem now..."));
+              
+              XModem modem(recvChar, sendData, xmodemHandlerReceive);
+              xmodem_status = S_OK;
+              modem.receive();
+
+              if( xmodem_status == FR_OK )
+                Serial.println(F("\r\nSuccess!"));
+              else
+                {
+                  unsigned long t = millis() + 500;
+                  while( millis() < t ) { if( Serial.read()>=0 ) t = millis()+500; }
+                  while( Serial.read()<0 );
+                  
+                  Serial.println('\r');
+                  if( xmodem_status!=S_OK ) print_ff_error(xmodem_status);
+                }
+              
+              f_close(&FatFsFile);
+            }
+          else
+            print_ff_error(fr);
+        }
+      else if( strncmp_PF(cmd, F("send "), 5)==0 )
+        {
+          ArduinoFDC.motorOn();
+          fr = f_open(&FatFsFile, cmd+5, FA_READ);
+          if( fr == FR_OK )
+            {
+              Serial.println(F("Receive file via XModem now..."));
+              
+              XModem modem(recvChar, sendData, xmodemHandlerSend);
+              xmodem_status = S_OK;
+              modem.transmit();
+              
+              if( xmodem_status == FR_OK )
+                Serial.println(F("\r\nSuccess!"));
+              else
+                {
+                  unsigned long t = millis() + 500;
+                  while( millis() < t ) { if( Serial.read()>=0 ) t = millis()+500; }
+                  while( Serial.read()<0 );
+                  
+                  Serial.println('\r');
+                  if( xmodem_status!=S_OK ) print_ff_error(xmodem_status);
+                }
+              
+              f_close(&FatFsFile);
+            }
+          else
+            print_ff_error(fr);
+        }
+#endif
+#if !defined(USE_ARDUDOS) || !defined(USE_MONITOR) || !defined(USE_XMODEM)
+      // must save flash space if all three of ARDUDOS/MONITR/XMODEM are enabled
+      else if( strcmp_PF(cmd, F("help"))==0 || strcmp_PF(cmd, F("h"))==0 || strcmp_PF(cmd, F("?"))==0 )
+        {
+          Serial.print(F("Valid commands: dir, type, dump, write, del, mkdir, rmdir, disktype, format"));
+#ifdef USE_MONITOR
+          Serial.print(F(", monitor"));
+#endif
+#ifdef USE_XMODEM
+          Serial.print(F(", send, receive"));
+#endif
+          Serial.println();
+        }
+#endif
+      else if( cmd[0]!=0 )
+        {
+          Serial.print(F("Unknown command: ")); 
+          Serial.print(cmd);
+        }
+
+      motor_timeout = millis() + 5000;
+    }
+}
+
+#endif
+
+
+// -------------------------------------------------------------------------------------------------
 // Low-level disk monitor
 // -------------------------------------------------------------------------------------------------
 
 
-void print_drive_type(byte n)
-{
-  switch( n )
-    {
-    case ArduinoFDCClass::DT_5_DD: Serial.print(F("5.25\" DD")); break;
-    case ArduinoFDCClass::DT_5_DDonHD: Serial.print(F("5.25\" DD disk in HD drive")); break;
-    case ArduinoFDCClass::DT_5_HD: Serial.print(F("5.25\" HD")); break;
-    case ArduinoFDCClass::DT_3_DD: Serial.print(F("3.5\" DD")); break;
-    case ArduinoFDCClass::DT_3_HD: Serial.print(F("3.5\" HD")); break;
-    default: Serial.print(F("Unknown"));
-    }
-}
-
-
 #ifdef USE_MONITOR
+
+// re-use the FatFs data buffer if ARDUDOS is enabled (to save RAM)
+#ifdef USE_ARDUDOS
+#define databuffer FatFs.win
+#else
+static byte databuffer[516];
+#endif
+
 
 #ifdef USE_XMODEM
 
@@ -247,27 +657,6 @@ bool xmodemHandlerReceiveMon(unsigned long no, char* data, int size)
 }
 
 #endif
-
-void print_error(byte n)
-{
-  Serial.print(F("Error: "));
-  switch( n )
-    {
-    case S_OK        : Serial.print(F("No error")); break;
-    case S_NOTINIT   : Serial.print(F("ArduinoFDC.begin() was not called")); break;
-    case S_NOTREADY  : Serial.print(F("Drive not ready")); break;
-    case S_NOSYNC    : Serial.print(F("No sync marks found")); break;
-    case S_NOHEADER  : Serial.print(F("Sector header not found")); break;
-    case S_INVALIDID : Serial.print(F("Data record has unexpected id")); break;
-    case S_CRC       : Serial.print(F("Data checksum error")); break;
-    case S_NOINDEX   : Serial.print(F("No index hole detected")); break;
-    case S_NOTRACK0  : Serial.print(F("No track 0 signal detected")); break;
-    case S_VERIFY    : Serial.print(F("Verify after write failed")); break;
-    case S_READONLY  : Serial.print(F("Disk is write protected")); break;
-    default          : Serial.print(F("Unknonwn error")); break;
-    }
-  Serial.println('!');
-}
 
 
 void monitor() 
@@ -522,6 +911,7 @@ void monitor()
         return;
 #endif
 #if !defined(USE_ARDUDOS) || !defined(USE_MONITOR) || !defined(USE_XMODEM)
+      // must save flash space if all three of ARDUDOS/MONITR/XMODEM are enabled
       else if( cmd=='h' || cmd=='?' )
         {
           Serial.println(F("Commands (t=track (0-based), s=sector (1-based), h=head (0/1)):"));
@@ -552,516 +942,6 @@ void monitor()
 #endif
 
 
-#ifdef USE_ARDUDOS
-
-// -------------------------------------------------------------------------------------------------
-// Low-level disk access routines for FatFS
-// -------------------------------------------------------------------------------------------------
-
-
-DSTATUS disk_status(BYTE pdrv)
-{ 
-  // STA_NOINIT:  Drive not initialized
-  // STA_NODISK:  No medium in the drive
-  // STA_PROTECT: Write protected
-  return ArduinoFDC.isWriteProtected() ? STA_PROTECT : 0;
-}
-
-DSTATUS disk_initialize(BYTE pdrv)
-{ 
-  return ((ArduinoFDC.haveDisk() ? 0 : (STA_NODISK|STA_NOINIT)) | 
-          (ArduinoFDC.isWriteProtected() ? STA_PROTECT : 0));
-}
-
-
-DRESULT disk_read(BYTE pdrv, BYTE *buf, DWORD sec, UINT count)
-{
-  DRESULT res = RES_OK;
-
-  byte numsec = ArduinoFDC.numSectors();
-
-  if( count!=1 || sec>2*numsec*ArduinoFDC.numTracks() )
-    res = RES_PARERR;
-  else
-    {
-      byte head   = 0;
-      byte track  = sec / (numsec*2);
-      byte sector = sec % (numsec*2);
-      if( sector >= numsec ) { head = 1; sector -= numsec; }
-
-      byte r = S_NOHEADER, retry = 5;
-      while( retry>0 && r!=S_OK ) { r = ArduinoFDC.readSector(track, head, sector+1, buf); retry--; }
-
-      if( r==S_OK )
-        {
-          memmove(buf, buf+1, 512);
-          res = RES_OK;
-        }
-      else if( r==S_NOTREADY )
-        res = RES_NOTRDY;
-      else
-        res = RES_ERROR;
-    }
-
-  return res;
-}
-
-
-DRESULT disk_write(BYTE pdrv, const BYTE *buf, DWORD sec, UINT count)
-{
-  DRESULT res = RES_OK;
-  byte numsec = ArduinoFDC.numSectors();
-
-  if( count!=1 || sec>2*numsec*ArduinoFDC.numTracks() )
-    res = RES_PARERR;
-  else
-    {
-      byte head   = 0;
-      byte track  = sec / (numsec*2);
-      byte sector = sec % (numsec*2);
-
-      if( sector >= numsec ) { head = 1; sector -= numsec; }
-
-      memmove(buf+1, buf, 512);
-      byte r = S_NOHEADER, retry = 3;
-      while( retry>0 && r!=S_OK ) { r = ArduinoFDC.writeSector(track, head, sector+1, buf, true); retry--; }
-      memmove(buf, buf+1, 512);
-
-      if( r==S_OK )
-        res = RES_OK;
-      else if( r==S_NOTREADY )
-        res = RES_NOTRDY;
-      else if( r==S_READONLY )
-        res = RES_WRPRT;
-      else
-        res = RES_ERROR;
-    }
-  
-  return res;
-}
-
-
-DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void* buff)
-{
-  DRESULT res = RES_ERROR;
-
-  switch( cmd )
-    {
-    case CTRL_SYNC: 
-      res = RES_OK; 
-      break;
-
-    case GET_SECTOR_COUNT:
-      *((DWORD *) buff) = (DWORD) ArduinoFDC.numSectors() * (DWORD) ArduinoFDC.numTracks() * 2;
-      res = RES_OK;
-      break;
-
-    case GET_SECTOR_SIZE:
-      *((DWORD *) buff) = 512;
-      break;
-
-    case GET_BLOCK_SIZE:
-      *((DWORD *) buff) = 1;
-      break;
-    }
-  
-  return res;
-}
-
-
-// -------------------------------------------------------------------------------------------------
-// High-level ArduDOS 
-// -------------------------------------------------------------------------------------------------
-
-
-#ifdef USE_XMODEM
-
-#include "XModem.h"
-
-FRESULT xmodem_status = S_OK;
-
-bool xmodemHandlerSend(unsigned long no, char* data, int size)
-{
-  UINT br;
-  xmodem_status = f_read(&FatFsFile, data, size, &br);
-
-  // if there is an error or there is nothing more to read then return
-  if( xmodem_status != FR_OK || br==0 ) return false;
-  
-  // XMODEM sends blocks of 128 bytes so if we have less than that
-  // fill the rest of the buffer with EOF (ASCII 26) characters
-  while( br<size ) data[br++]=26;
-
-  return true;
-}
-
-
-bool xmodemHandlerReceive(unsigned long no, char* data, int size)
-{
-  UINT bw;
-  xmodem_status = f_write(&FatFsFile, data, size, &bw);
-
-  // if there is an error or then return
-  if( xmodem_status != FR_OK ) return false;
-  
-  return true;
-}
-
-
-#endif
-
-
-void print_ff_error(FRESULT fr)
-{
-  Serial.print(F("Error #")); 
-  Serial.print(fr);
-  Serial.print(F(": "));
-  switch( fr )
-    {
-    case FR_DISK_ERR: Serial.print(F("Low-level disk error")); break;
-    case FR_INT_ERR: Serial.print(F("Internal error")); break;
-    case FR_NOT_READY: Serial.print(F("Drive not ready")); break;
-    case FR_NO_FILE: Serial.print(F("File not found")); break;
-    case FR_NO_PATH: Serial.print(F("Path not found")); break;
-    case FR_INVALID_NAME: Serial.print(F("Invalid path format")); break;
-    case FR_DENIED: Serial.print(F("Directory full")); break;
-    case FR_EXIST: Serial.print(F("File exists")); break;
-    case FR_INVALID_OBJECT: Serial.print(F("Invalid object")); break;
-    case FR_WRITE_PROTECTED: Serial.print(F("Disk is write protected")); break;
-    case FR_INVALID_DRIVE: Serial.print(F("Invalid drive")); break;
-    case FR_NOT_ENABLED: Serial.print(F("The volume has no work area")); break;
-    case FR_NO_FILESYSTEM: Serial.print(F("Not a FAT file system")); break;
-    case FR_MKFS_ABORTED: Serial.print(F("Format aborted due to error")); break;
-    case FR_NOT_ENOUGH_CORE: Serial.print(F("Out of memory")); break;
-    case FR_INVALID_PARAMETER: Serial.print(F("Invalid parameter")); break;
-    default: Serial.print(F("Unknown")); break;
-    }
-  Serial.println();
-}
-
-
-#define TEMPBUFFER_SIZE 80
-byte tempbuffer[TEMPBUFFER_SIZE];
-
-void arduDOS()
-{
-  UINT count;
-  FRESULT fr;
-
-  f_mount(&FatFs, "0:", 0);
-  while( 1 )
-    {
-      Serial.println();
-      Serial.write('A'+ArduinoFDC.selectedDrive());
-      Serial.print(F(":>"));
-      char *cmd = read_user_cmd(tempbuffer, TEMPBUFFER_SIZE);
-
-      if( strcmp_PF(cmd, F("a:"))==0 || strcmp_PF(cmd, F("b:"))==0 )
-        {
-          byte drive = cmd[0]-'a';
-          if( drive != ArduinoFDC.selectedDrive() )
-            {
-              ArduinoFDC.motorOff();
-              motor_timeout = 0;
-              ArduinoFDC.selectDrive(drive);
-            }
-
-          f_mount(&FatFs, "0:", 0);
-        }
-      else if( strncmp_PF(cmd, F("dir"), 3)==0 )
-        {
-          DIR dir;
-          FILINFO finfo;
-
-          ArduinoFDC.motorOn();
-          fr = f_opendir(&dir, strlen(cmd)<5 ? "0:\\" : cmd+4);
-          if (fr == FR_OK) 
-            {
-              count = 0;
-              while(1)
-                {
-                  fr = f_readdir(&dir, &finfo);
-                  if( fr!=FR_OK || finfo.fname[0]==0 )
-                    break;
-                  
-                  char *c = finfo.fname;
-                  byte col = 0;
-                  while( *c!=0 && *c!='.' ) { Serial.write(toupper(*c)); col++; c++; }
-                  while( col<9 ) { Serial.write(' '); col++; }
-                  if( *c=='.' )
-                    {
-                      c++;
-                      while( *c!=0 ) { Serial.write(toupper(*c)); col++; c++; }
-                    }
-                  while( col<14 ) { Serial.write(' '); col++; }
-                  if( finfo.fattrib & AM_DIR )
-                    Serial.println(F("<DIR>"));
-                  else
-                    Serial.println(finfo.fsize);
-                  count++;
-                }
-
-              f_closedir(&dir);
-
-              if( fr==FR_OK )
-                {
-                  if( count==0 ) Serial.println(F("No files."));
-                  
-                  FATFS *fs;
-                  DWORD fre_clust, fre_sect, tot_sect;
-                  fr = f_getfree("0:", &fre_clust, &fs);
-
-                  if( fr==FR_OK )
-                    { Serial.print(fre_clust * fs->csize * 512); Serial.println(F(" bytes free.")); }
-                }
-
-              if( fr!=FR_OK )
-                print_ff_error(fr);
-            }
-          else
-            print_ff_error(fr);
-        }
-      else if( strncmp_PF(cmd, F("type "), 5)==0 )
-        {
-          ArduinoFDC.motorOn();
-          fr = f_open(&FatFsFile, cmd+5, FA_READ);
-          if( fr == FR_OK )
-            {
-              count = 1;
-              while( count>0 )
-                {
-                  fr = f_read(&FatFsFile, tempbuffer, TEMPBUFFER_SIZE, &count);
-                  if( fr == FR_OK )
-                    Serial.write(tempbuffer, count);
-                  else
-                    print_ff_error(fr);
-                }
-              f_close(&FatFsFile);
-            }
-          else
-            print_ff_error(fr);
-        }
-      else if( strncmp_PF(cmd, F("dump "), 5)==0 )
-        {
-          ArduinoFDC.motorOn();
-          fr = f_open(&FatFsFile, cmd+5, FA_READ);
-          if( fr == FR_OK )
-            {
-              count = 1;
-              int offset = 0;
-              while( count>0 )
-                {
-                  fr = f_read(&FatFsFile, tempbuffer, (TEMPBUFFER_SIZE/16)*16, &count);
-                  if( fr == FR_OK )
-                    { dump_buffer(offset, tempbuffer, count); offset += count; }
-                  else
-                    print_ff_error(fr);
-                }
-              f_close(&FatFsFile);
-            }
-          else
-            print_ff_error(fr);
-        }
-      else if( strncmp_PF(cmd, F("write "), 6)==0 )
-        {
-          ArduinoFDC.motorOn();
-          fr = f_open(&FatFsFile, cmd+6, FA_WRITE | FA_CREATE_NEW);
-          if( fr == FR_OK )
-            {
-              while( true )
-                {
-                  char *s = read_user_cmd(tempbuffer, TEMPBUFFER_SIZE);
-                  if( s[0] )
-                    {
-                      fr = f_write(&FatFsFile, s, strlen(cmd), &count);
-                      if( fr==FR_OK ) fr = f_write(&FatFsFile, "\r\n", 2, &count);
-                      if( fr!=FR_OK ) print_ff_error(fr);
-                    }
-                  else
-                    break;
-                }
-
-              f_close(&FatFsFile);
-            }
-          else
-            print_ff_error(fr);
-        }
-      else if( strncmp_PF(cmd, F("del "), 4)==0 )
-        {
-          ArduinoFDC.motorOn();
-          fr = f_unlink(cmd+4);
-          if( fr != FR_OK )
-            print_ff_error(fr);
-        }
-      else if( strncmp_PF(cmd, F("mkdir "), 6)==0 )
-        {
-          ArduinoFDC.motorOn();
-          fr = f_mkdir(cmd+6);
-          if( fr != FR_OK )
-            print_ff_error(fr);
-        }
-      else if( strncmp_PF(cmd, F("rmdir "), 6)==0 )
-        {
-          ArduinoFDC.motorOn();
-          fr = f_rmdir(cmd+6);
-          if( fr != FR_OK )
-            print_ff_error(fr);
-        }
-      else if( strncmp_PF(cmd, F("disktype "), 9)==0 )
-        {
-          ArduinoFDC.setDriveType(atoi(cmd+9));
-          Serial.print(F("Setting disk type for drive ")); Serial.write('A'+ArduinoFDC.selectedDrive()); 
-          Serial.print(F(" to ")); print_drive_type(ArduinoFDC.getDriveType()); Serial.println();
-          f_mount(&FatFs, "0:", 0);
-        }
-      else if( strncmp_PF(cmd, F("format"), 6)==0 )
-        {
-          MKFS_PARM param;
-          param.fmt = FM_FAT | FM_SFD; // FAT12 type, no disk partitioning
-          param.n_fat = 2;             // number of FATs
-          param.n_heads = 2;           // number of heads
-          param.n_sec_track = ArduinoFDC.numSectors(); 
-          param.align = 1;             // block alignment (not used for FAT12)
-          
-          switch( ArduinoFDC.getDriveType() )
-            {
-            case ArduinoFDCClass::DT_5_DD:
-            case ArduinoFDCClass::DT_5_DDonHD:
-              param.au_size = 1024; // bytes/cluster
-              param.n_root  = 112;  // number of root directory entries
-              param.media   = 0xFD; // media descriptor
-              break;
-              
-            case ArduinoFDCClass::DT_5_HD:
-              param.au_size = 512;  // bytes/cluster
-              param.n_root  = 224;  // number of root directory entries
-              param.media   = 0xF9; // media descriptor
-              break;
-
-            case ArduinoFDCClass::DT_3_DD:
-              param.au_size = 1024; // bytes/cluster
-              param.n_root  = 112;  // number of root directory entries
-              param.media   = 0xF9; // media descriptor
-              break;
-
-            case ArduinoFDCClass::DT_3_HD:
-              param.au_size = 512;  // bytes/cluster
-              param.n_root  = 224;  // number of root directory entries
-              param.media   = 0xF0; // media descriptor
-              break;
-            }
-          
-          if( confirm_formatting() )
-            {
-              byte st;
-              ArduinoFDC.motorOn();
-              f_unmount("0:");
-              if( strstr(cmd, "/q") || (st=ArduinoFDC.formatDisk())==S_OK )
-                {
-                  Serial.println(F("Initializing file system...\n"));
-                  FRESULT fr = f_mkfs ("0:", &param, databuffer, 512);
-                  if( fr != FR_OK ) print_ff_error(fr);
-                }
-              else
-                print_error(st);
-              
-              f_mount(&FatFs, "0:", 0);
-            }
-        }
-#ifdef USE_MONITOR
-      else if( strcmp_PF(cmd, F("monitor"))==0 )
-        {
-          motor_timeout = 0;
-          monitor();
-          f_mount(&FatFs, "0:", 0);
-        }
-#endif
-#ifdef USE_XMODEM
-      else if( strncmp_PF(cmd, F("receive "), 8)==0 )
-        {
-          ArduinoFDC.motorOn();
-          fr = f_open(&FatFsFile, cmd+8, FA_WRITE | FA_CREATE_NEW);
-          if( fr == FR_OK )
-            {
-              Serial.println(F("Send file via XModem now..."));
-              
-              XModem modem(recvChar, sendData, xmodemHandlerReceive);
-              xmodem_status = S_OK;
-              modem.receive();
-
-              if( xmodem_status == FR_OK )
-                Serial.println(F("\r\nSuccess!"));
-              else
-                {
-                  unsigned long t = millis() + 500;
-                  while( millis() < t ) { if( Serial.read()>=0 ) t = millis()+500; }
-                  while( Serial.read()<0 );
-                  
-                  Serial.println('\r');
-                  if( xmodem_status!=S_OK ) print_ff_error(xmodem_status);
-                }
-              
-              f_close(&FatFsFile);
-            }
-          else
-            print_ff_error(fr);
-        }
-      else if( strncmp_PF(cmd, F("send "), 5)==0 )
-        {
-          ArduinoFDC.motorOn();
-          fr = f_open(&FatFsFile, cmd+5, FA_READ);
-          if( fr == FR_OK )
-            {
-              Serial.println(F("Receive file via XModem now..."));
-              
-              XModem modem(recvChar, sendData, xmodemHandlerSend);
-              xmodem_status = S_OK;
-              modem.transmit();
-              
-              if( xmodem_status == FR_OK )
-                Serial.println(F("\r\nSuccess!"));
-              else
-                {
-                  unsigned long t = millis() + 500;
-                  while( millis() < t ) { if( Serial.read()>=0 ) t = millis()+500; }
-                  while( Serial.read()<0 );
-                  
-                  Serial.println('\r');
-                  if( xmodem_status!=S_OK ) print_ff_error(xmodem_status);
-                }
-              
-              f_close(&FatFsFile);
-            }
-          else
-            print_ff_error(fr);
-        }
-#endif
-#if !defined(USE_ARDUDOS) || !defined(USE_MONITOR) || !defined(USE_XMODEM)
-      else if( strcmp_PF(cmd, F("help"))==0 || strcmp_PF(cmd, F("h"))==0 || strcmp_PF(cmd, F("?"))==0 )
-        {
-          Serial.print(F("Valid commands: dir, type, dump, write, del, mkdir, rmdir, disktype, format"));
-#ifdef USE_MONITOR
-          Serial.print(F(", monitor"));
-#endif
-#ifdef USE_XMODEM
-          Serial.print(F(", send, receive"));
-#endif
-          Serial.println();
-        }
-#endif
-      else if( cmd[0]!=0 )
-        {
-          Serial.print(F("Unknown command: ")); 
-          Serial.print(cmd);
-        }
-
-      motor_timeout = millis() + 5000;
-    }
-}
-
-#endif
-
-
 // -------------------------------------------------------------------------------------------------
 // Main functions
 // -------------------------------------------------------------------------------------------------
@@ -1072,6 +952,7 @@ void setup()
   Serial.begin(115200);
   ArduinoFDC.begin(ArduinoFDCClass::DT_3_HD, ArduinoFDCClass::DT_3_HD);
 
+  // must save flash space if all three of ARDUDOS/MONITR/XMODEM are enabled
 #if !defined(USE_ARDUDOS) || !defined(USE_MONITOR) || !defined(USE_XMODEM)
   Serial.print(F("Drive A: ")); print_drive_type(ArduinoFDC.getDriveType()); Serial.println();
   if( ArduinoFDC.selectDrive(1) )
@@ -1085,9 +966,11 @@ void setup()
 
 void loop() 
 {
-#ifdef USE_ARDUDOS
+#if defined(USE_ARDUDOS)
   arduDOS();
-#else
+#elif defined(USE_MONITOR)
   monitor();
+#else
+#error "Need at least one of USE_ARDUDOS and USE_MONITOR"
 #endif
 }
