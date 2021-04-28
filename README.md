@@ -257,7 +257,7 @@ The following commands are available:
   Remove the specified directory.
 * `disktype 0/1/2/3/4` <br/>
   Set the drive type of the current drive, where 0/1/2/3/4 stands for the drive type
-  as listed (in the same order) in section "[Supported disk-drive types](supported-diskdrive-types)" above.
+  as listed (in the same order) in section "[Supported disk/drive types](#supported-diskdrive-types)" above.
 * `format [/q]` <br/>
   Low-level format a disk and initialize a FAT file system. If `/q` argument is given,
   performs a quick format, i.e. only resets the file system without low-level format.
