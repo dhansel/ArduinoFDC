@@ -2,9 +2,9 @@
 
 ![ArduinoFDC Setup](images/setup.jpg)
 
-ArduinoFDC is a floppy disk controller implemented on an Arduino UNO, Nano, Pro Mini and MEGA.
+ArduinoFDC is a sketch that implements a floppy disk controller. It works on an Arduino UNO, Nano, Pro Mini or MEGA.
 
-It consists of three parts: 
+ArduinoFDC consists of three parts: 
 
 1. A [library](#library-functions) providing low-level functions to allow reading and writing disks at the 
 sector level as well as low-level formatting disks.
