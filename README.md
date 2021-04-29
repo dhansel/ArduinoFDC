@@ -2,7 +2,7 @@
 
 ![ArduinoFDC Setup](images/setup.jpg)
 
-ArduinoFDC is a floppy disk controller implemented on an Arduino UNO (or any ATMega328P).
+ArduinoFDC is a floppy disk controller implemented on an Arduino UNO, Nano, Pro Mini and MEGA.
 
 It consists of three parts: 
 
@@ -29,23 +29,23 @@ easily be changed whereas others are hard-coded in the controller code. Refer to
 the comments at the top of the ArduinoFDC.cpp file if you want to use different
 pin assignments.
 
-Arduino pin  | Floppy Drive pin | Notes  | Function
--------------|------------------|--------|----------------
-2            | 20               | 3      | Head Step Pulse
-3            | 18               | 3      | Head Step Direction
-4            | 10               | 1,3    | Motor Enable A
-5            | 14               | 1,3    | Drive Select A
-6            | 32               | 3      | Side Select
-7            | 8 	              |        | Index
-8            | 30               | 2      | Read Data
-9            | 22               |        | Write Data
-10           | 24               |        | Write Gate (write enable)
-11           | 26               | 3      | Track 0
-12           | 28               | 3,4    | Write Protect signal
-13           | 2                | 3,4,5  | Density select signal
-A0           | 16               | 1,3,4  | Motor Enable B
-A1           | 12               | 1,3,4  | Drive Select B
-GND          | 1,3,5,...,31,33  |        | GND (just pick one)
+Floppy Cable pin | Arduino UNO pin  | Arduino MEGA pin | Notes  | Function
+-----------------|------------------|------------------|--------|----------------
+2                | 13               |  42              | 3,4,5  | Density select signal
+8                | 7                |  47              |        | Index
+10               | 4                |  51              | 1,3    | Motor Enable A
+12               | A1               |  40              | 1,3,4  | Drive Select B
+14               | 5                |  50              | 1,3    | Drive Select A
+16               | A0               |  41              | 1,3,4  | Motor Enable B
+18               | 3                |  52              | 3      | Head Step Direction
+20               | 2                |  53              | 3      | Head Step Pulse
+22               | 9                |  46              |        | Write Data
+24               | 10               |  45              |        | Write Gate (write enable)
+26               | 11               |  44              | 3      | Track 0
+28               | 12               |  43              | 3,4    | Write Protect signal
+30               | 8                |  48              | 2      | Read Data
+32               | 6                |  49              | 3      | Side Select
+1,3,5,...,31,33  | GND              | GND              |        | GND (just pick one)
 
 **Note 1:**
 The pin numbers for the SELECT/MOTOR signals assume you are wiring to
@@ -110,7 +110,7 @@ By default, the mode is set to DP_DISCONNECT for 3.5" disks and DP_OUTPUT_LOW_FO
 
 Another way to handle the DENSITY signal is to comment out the `#define PIN_DENSITY` line
 at the top of ArduinoFDC.cpp and hard-wire the DENSITY signal from the disk drive cable
-to the proper level.
+to the proper level (or leave it disconnected).
 
 ## Library functions:
 
