@@ -35,6 +35,9 @@
 // Basic helper functions
 // -------------------------------------------------------------------------------------------------
 
+#define TEMPBUFFER_SIZE 80
+byte tempbuffer[TEMPBUFFER_SIZE];
+
 unsigned long motor_timeout = 0;
 
 
@@ -185,10 +188,6 @@ void sendData(const char *data, int size)
 
 static FATFS FatFs;
 static FIL   FatFsFile;
-
-#define TEMPBUFFER_SIZE 80
-byte tempbuffer[TEMPBUFFER_SIZE];
-
 
 #ifdef USE_XMODEM
 
@@ -379,6 +378,7 @@ void arduDOS()
           fr = f_open(&FatFsFile, cmd+6, FA_WRITE | FA_CREATE_NEW);
           if( fr == FR_OK )
             {
+              motor_timeout = 0;
               while( true )
                 {
                   char *s = read_user_cmd(tempbuffer, TEMPBUFFER_SIZE);
@@ -547,8 +547,8 @@ void arduDOS()
             print_ff_error(fr);
         }
 #endif
-#if !defined(USE_ARDUDOS) || !defined(USE_MONITOR) || !defined(USE_XMODEM)
-      // must save flash space if all three of ARDUDOS/MONITR/XMODEM are enabled
+#if !defined(USE_ARDUDOS) || !defined(USE_MONITOR) || !defined(USE_XMODEM) || defined(__AVR_ATmega2560__)
+      // must save flash space if all three of ARDUDOS/MONITR/XMODEM are enabled on UNO
       else if( strcmp_PF(cmd, F("help"))==0 || strcmp_PF(cmd, F("h"))==0 || strcmp_PF(cmd, F("?"))==0 )
         {
           Serial.print(F("Valid commands: dir, type, dump, write, del, mkdir, rmdir, disktype, format"));
@@ -668,8 +668,7 @@ void monitor()
   while( true )
     {
       Serial.print(F("\r\n\r\nCommand: "));
-      char *s = read_user_cmd(databuffer, 512);
-      n = sscanf(s, "%c%i,%i,%i", &cmd, &a1, &a2, &a3);
+      n = sscanf(read_user_cmd(tempbuffer, 512), "%c%i,%i,%i", &cmd, &a1, &a2, &a3);
       if( n<=0 || isspace(cmd) ) continue;
 
       if( cmd=='r' && n>=3 )
@@ -910,8 +909,8 @@ void monitor()
       else if (cmd=='x' )
         return;
 #endif
-#if !defined(USE_ARDUDOS) || !defined(USE_MONITOR) || !defined(USE_XMODEM)
-      // must save flash space if all three of ARDUDOS/MONITR/XMODEM are enabled
+#if !defined(USE_ARDUDOS) || !defined(USE_MONITOR) || !defined(USE_XMODEM) || defined(__AVR_ATmega2560__)
+      // must save flash space if all three of ARDUDOS/MONITR/XMODEM are enabled on UNO
       else if( cmd=='h' || cmd=='?' )
         {
           Serial.println(F("Commands (t=track (0-based), s=sector (1-based), h=head (0/1)):"));
@@ -952,8 +951,8 @@ void setup()
   Serial.begin(115200);
   ArduinoFDC.begin(ArduinoFDCClass::DT_3_HD, ArduinoFDCClass::DT_3_HD);
 
-  // must save flash space if all three of ARDUDOS/MONITR/XMODEM are enabled
-#if !defined(USE_ARDUDOS) || !defined(USE_MONITOR) || !defined(USE_XMODEM)
+  // must save flash space if all three of ARDUDOS/MONITOR/XMODEM are enabled on UNO
+#if !defined(USE_ARDUDOS) || !defined(USE_MONITOR) || !defined(USE_XMODEM) || defined(__AVR_ATmega2560__)
   Serial.print(F("Drive A: ")); print_drive_type(ArduinoFDC.getDriveType()); Serial.println();
   if( ArduinoFDC.selectDrive(1) )
     {
