@@ -19,21 +19,127 @@
 
 #include "ArduinoFDC.h"
 
-// input/output pin definitions
+#if defined(__AVR_ATmega328P__)
+
+// input/output pin definitions for Arduino UNO (Atmega328p)
+
 #define PIN_STEP       2  // can be changed to different pin
 #define PIN_STEPDIR    3  // can be changed to different pin
 #define PIN_MOTORA     4  // can be changed to different pin
 #define PIN_SELECTA    5  // can be changed to different pin
 #define PIN_SIDE       6  // can be changed to different pin
 #define PIN_INDEX      7  // hardwired to pin 7 (PD7) in function format_track()
-#define PIN_READDATA   8  // must be pin 8 (ICP1 for timer1)
-#define PIN_WRITEDATA  9  // must be pin 9 (OCP1 for timer1)
+#define PIN_READDATA   8  // must be pin 8 (ICP for timer1)
+#define PIN_WRITEDATA  9  // must be pin 9 (OCP for timer1)
 #define PIN_WRITEGATE 10  // hardwired to pin 10 (PB2) in functions write_data() and format_track()
 #define PIN_TRACK0    11  // can be changed to different pin
 #define PIN_WRITEPROT 12  // can be changed to different pin or commented out
 #define PIN_DENSITY   13  // can be changed to different pin or commented out
 #define PIN_MOTORB    A0  // can be changed to different pin or commented out (together with PIN_SELECTB)
 #define PIN_SELECTB   A1  // can be changed to different pin or commented out (together with PIN_MOTORB)
+
+
+asm ("   .equ TIFR,    0x16\n"  // timer 1 flag register
+     "   .equ TOV,     0\n"     // overflow flag
+     "   .equ OCF,     1\n"     // output compare flag
+     "   .equ ICF,     5\n"     // input capture flag
+     "   .equ TCCRC,   0x82\n"  // timer 1 control register C
+     "   .equ FOC,     0x80\n"  // force output compare flag
+     "   .equ TCNTL,   0x84\n"  // timer 1 counter (low byte)
+     "   .equ ICRL,    0x86\n"  // timer 1 input capture register (low byte)
+     "   .equ OCRL,    0x88\n"  // timer 1 output compare register (low byte)
+     "   .equ IDXPORT, 0x09\n"  // INDEX pin register (digital pin 7, register PD7)
+     "   .equ IDXBIT,  7\n"     // INDEX pin bit (digital pin 7, register PD7)
+     );
+
+#define TIFR    TIFR1   // timer 1 flag register
+#define TOV     TOV1    // overflow flag
+#define OCF     OCF1A   // output compare flag
+#define ICF     ICF1    // input capture flag
+#define TCCRA   TCCR1A  // timer 1 control register A
+#define COMA1   COM1A1  // timer 1 output compare mode bit 1
+#define COMA0   COM1A0  // timer 1 output compare mode bit 0
+#define TCCRB   TCCR1B  // timer 1 control register B
+#define CS1     CS11    // timer 1 clock select bit 1
+#define CS0     CS10    // timer 1 clock select bit 0
+#define WGM2    WGM12   // timer 1 waveform mode bit 2
+#define TCCRC   TCCR1C  // timer 1 control register C
+#define FOC     FOC1A   // force output compare flag
+#define OCR     OCR1A   // timer 1 output compare register
+#define TCNT    TCNT1   // timer 1 counter
+#define IDXPORT PIND    // INDEX pin register (digital pin 7, register PD7)
+#define IDXBIT  7       // INDEX pin bit (digital pin 7, register PD7)
+#define WGPORT  DDRB    // WRITEGATE pin port (digital pin , register PB2)
+#define WGBIT   2       // WRITEGATE pin bit (digital pin , register PB2)
+#define OCDDR   DDRB    // DDR controlling WRITEDATA pin
+#define OCBIT   1       // bit for WRITEDATA pin
+
+
+#elif defined(__AVR_ATmega2560__)
+
+// input/output pin definitions for Arduino Mega (Atmega2560)
+
+#define PIN_STEP      53  // can be changed to different pin
+#define PIN_STEPDIR   52  // can be changed to different pin
+#define PIN_MOTORA    51  // can be changed to different pin
+#define PIN_SELECTA   50  // can be changed to different pin
+#define PIN_SIDE      49  // can be changed to different pin
+#define PIN_INDEX     47  // hardwired to pin 47 (PL2) in function format_track()
+#define PIN_READDATA  48  // must be pin 48 (ICP for timer5)
+#define PIN_WRITEDATA 46  // must be pin 46 (OCP for timer5)
+#define PIN_WRITEGATE 45  // hardwired to pin 45 (PL4) in functions write_data() and format_track()
+#define PIN_TRACK0    44  // can be changed to different pin
+#define PIN_WRITEPROT 43  // can be changed to different pin or commented out
+#define PIN_DENSITY   42  // can be changed to different pin or commented out
+#define PIN_MOTORB    41  // can be changed to different pin or commented out (together with PIN_SELECTB)
+#define PIN_SELECTB   40  // can be changed to different pin or commented out (together with PIN_MOTORB)
+
+
+asm ("   .equ TIFR,    0x1A\n"  // timer 5 flag register
+     "   .equ TOV,     0\n"     // overflow flag
+     "   .equ OCF,     1\n"     // output compare flag
+     "   .equ ICF,     5\n"     // input capture flag
+     "   .equ TCCRC,   0x122\n" // timer 5 control register C
+     "   .equ FOC,     0x80\n"  // force output compare flag
+     "   .equ TCNTL,   0x124\n" // timer 5 counter (low byte)
+     "   .equ ICRL,    0x126\n" // timer 5 input capture register (low byte)
+     "   .equ OCRL,    0x128\n" // timer 5 output compare register (low byte)
+     "   .equ IDXPORT, 0x109\n" // INDEX pin register (digital pin 47, register PL2)
+     "   .equ IDXBIT,  2\n"     // INDEX pin bit (digital pin 47, register PL2)
+     );
+
+#define TIFR    TIFR5   // timer 5 flag register
+#define TOV     TOV5    // overflow flag
+#define OCF     OCF5A   // output compare flag
+#define ICF     ICF5    // input capture flag
+#define TCCRA   TCCR5A  // timer 5 control register A
+#define COMA1   COM5A1  // timer 5 output compare mode bit 1
+#define COMA0   COM5A0  // timer 5 output compare mode bit 0
+#define TCCRB   TCCR5B  // timer 5 control register B
+#define CS1     CS51    // timer 5 clock select bit 1
+#define CS0     CS50    // timer 5 clock select bit 0
+#define WGM2    WGM52   // timer 5 waveform mode bit 2
+#define TCCRC   TCCR5C  // timer 5 control register C
+#define FOC     FOC5A   // force output compare flag
+#define OCR     OCR5A   // timer 5 output compare register
+#define TCNT    TCNT5   // timer 5 counter
+#define IDXPORT PINL    // INDEX pin register (digital pin 7, register PD7)
+#define IDXBIT  2       // INDEX pin bit (digital pin 7, register PD7)
+#define WGPORT  DDRL    // WRITEGATE pin port (digital pin , register PB2)
+#define WGBIT   4       // WRITEGATE pin bit (digital pin , register PB2)
+#define OCDDR   DDRL    // DDR controlling WRITEDATA pin
+#define OCBIT   3       // bit for WRITEDATA pin
+
+
+#else
+
+#error "ArduinoFDC library requires either an ATMega328P or ATMega2560 processor (Arduino UNO or Arduino MEGA)"
+
+#endif
+
+#if F_CPU != 16000000
+#error "ArduinoFDC library requires 16MHz clock speed"
+#endif
 
 
 struct DriveGeometryStruct
@@ -118,17 +224,17 @@ static bool is_write_protected()
 static bool check_pulse()
 {
   // reset timer and capture/overrun flags
-  TCNT1 = 0;
-  TIFR1 = bit(ICF1) | bit(TOV1);
+  TCNT = 0;
+  TIFR = bit(ICF) | bit(TOV);
 
   // wait for either input capture or timer overrun
-  while( !(TIFR1 & (bit(ICF1) | bit(TOV1))) );
+  while( !(TIFR & (bit(ICF) | bit(TOV))) );
 
   // if there was an input capture then we are ok
-  bool res = (TIFR1 & bit(ICF1))!=0;
+  bool res = (TIFR & bit(ICF))!=0;
 
   // reset input capture and timer overun flags
-  TIFR1 = bit(ICF1) | bit(TOV1);
+  TIFR = bit(ICF) | bit(TOV);
 
   return res;
 }
@@ -137,14 +243,14 @@ static bool check_pulse()
 static bool wait_index_hole()
 {
   // reset timer and overrun flags
-  TCNT1 = 0;
-  TIFR1 = bit(TOV1);
+  TCNT = 0;
+  TIFR = bit(TOV);
   byte ctr = 0;
 
   // wait for END of index hole (in case we're on the hole right now)
-  while( !(PIND & 0x80) )
+  while( !(IDXPORT & bit(IDXBIT)) )
     {
-      if( TIFR1 & bit(TOV1) )
+      if( TIFR & bit(TOV) )
         {
           // timer overflow happens every 4.096ms (65536 cycles at 16MHz)
           // meaning we haven't found a sync in that amount of time
@@ -159,15 +265,15 @@ static bool wait_index_hole()
             }
           
           // clear overflow flag
-          TIFR1 = bit(TOV1);
+          TIFR = bit(TOV);
         }
     }
 
   // wait for START of index hole (same as above)
   ctr = 0;
-  while( (PIND & 0x80) )
+  while( (IDXPORT & bit(IDXBIT)) )
     {
-      if( TIFR1 & bit(TOV1) )
+      if( TIFR & bit(TOV) )
         {
           if( ++ctr == 0 ) 
             {
@@ -177,12 +283,13 @@ static bool wait_index_hole()
               return false;
             }
 
-          TIFR1 = bit(TOV1);
+          TIFR = bit(TOV);
         }
     }
 
   return true;
 }
+
 
 
 static byte read_data(byte bitlen, byte *buffer, unsigned int n, byte verify)
@@ -211,10 +318,10 @@ static byte read_data(byte bitlen, byte *buffer, unsigned int n, byte verify)
      //           r22 contains the pulse length in timer ticks (=processor cycles)     
      // CLOBBERS: r19
      ".macro READPULSE length=0,dst=undefined\n"
-     "        sbis    0x16, 5\n"       // (1/2) skip next instruction if timer 1 input capture seen
+     "        sbis    TIFR, ICF\n"     // (1/2) skip next instruction if timer 1 input capture seen
      "        rjmp    .-4\n"           // (2)   wait more 
-     "        lds     r19, 0x86\n"     // (2)   get time of input capture (ICR1L, lower 8 bits only)
-     "        sbi     0x16, 5\n "      // (2)   clear input capture flag
+     "        lds     r19, ICRL\n"     // (2)   get time of input capture (ICR1L, lower 8 bits only)
+     "        sbi     TIFR, ICF\n "    // (2)   clear input capture flag
      "        mov     r22, r19\n"      // (1)   calculate time since previous capture...
      "        sub     r22, r18\n"      // (1)   ...into r22
      "        mov     r18, r19\n"      // (1)   set r18 to time of current capture
@@ -272,13 +379,13 @@ static byte read_data(byte bitlen, byte *buffer, unsigned int n, byte verify)
      "        add         r17, %2\n"   // (1)
      "        ldi         %0, 0\n"     // (1)   default return status is S_OK
      "        mov         r15, %0\n"   // (1)   initialize timer overflow counter
-     "        sbi         0x16, 0\n"   // (2)   reset timer overflow flag
+     "        sbi         TIFR, TOV\n" // (2)   reset timer overflow flag
 
      // wait for at least 80x "10" (short) pulse followed by "100" (medium) pulse
      "ws0:    ldi         r20, 0\n"    // (1)   initialize "short pulse" counter
-     "        sbis        0x16, 0\n"   // (1/2) skip next instruction if timer 1 overflow occurred
+     "        sbis        TIFR, TOV\n" // (1/2) skip next instruction if timer 1 overflow occurred
      "        rjmp        ws1\n"       // (2)   continue (no overflow)
-     "        sbi         0x16, 0\n"   // (2)   reset timer 1 overflow flag
+     "        sbi         TIFR, TOV\n" // (2)   reset timer 1 overflow flag
      "        dec         r15\n"       // (1)   overflow happens every 4.096ms, decrement overflow counter
      "        brne        ws1\n"       // (1/2) continue if less than 256 overflows
      "        ldi         %0, 3\n"     // (1)   no sync found in 1.048s => return status is is S_NOSYNC
@@ -379,45 +486,45 @@ static byte read_data(byte bitlen, byte *buffer, unsigned int n, byte verify)
 asm (// define WRITEPULSE macro (used in write_data and format_track)
      ".macro WRITEPULSE length=0\n"
      "  .if \\length==1\n"
-     "          sts   0x88, r16\n"       // (2)   set OCR1A to short pulse length
+     "          sts   OCRL, r16\n"       // (2)   set OCRxA to short pulse length
      "  .endif\n"
      "  .if \\length==2\n"
-     "          sts   0x88, r17\n"       // (2)   set OCR1A to medium pulse length
+     "          sts   OCRL, r17\n"       // (2)   set OCRxA to medium pulse length
      "  .endif\n"
      "  .if \\length==3\n"
-     "          sts   0x88, r18\n"       // (2)   set OCR1A to long pulse length
+     "          sts   OCRL, r18\n"       // (2)   set OCRxA to long pulse length
      "  .endif\n"
-     "          sbis  0x16,   1\n"       // (1/2) skip next instruction if OCF1A is set
+     "          sbis  TIFR, OCF\n"       // (1/2) skip next instruction if OCFx is set
      "          rjmp  .-4\n"             // (2)   wait more
-     "          ldi   r19,  0x80\n"      // (1)
-     "          sts   0x82, r19\n"       // (2)   set OCP1 back HIGH (was set LOW when timer expired)
-     "          sbi   0x16,   1\n"       // (2)   reset OCF1A (output compare flag)
+     "          ldi   r19,  FOC\n"       // (1)
+     "          sts   TCCRC, r19\n"      // (2)   set OCP back HIGH (was set LOW when timer expired)
+     "          sbi   TIFR, OCF\n"       // (2)   reset OCFx (output compare flag)
      ".endm\n");
 
 
 static void write_data(byte bitlen, byte *buffer, unsigned int n)
 {
   // make sure OC1A is high before we enable WRITE_GATE
-  DDRB   &= ~0x02;                     // disable OC1A pin
-  TCCR1A  = bit(COM1A1) | bit(COM1A0); // set OC1A on compare match
-  TCCR1C |= bit(FOC1A);                // force compare match
-  TCCR1A  = 0;                         // disable OC1A control by timer
-  DDRB   |= 0x02;                      // enable OC1A pin
+  OCDDR  &= ~bit(OCBIT);             // disable OC1A pin
+  TCCRA  = bit(COMA1) | bit(COMA0);  // set OC1A on compare match
+  TCCRC |= bit(FOC);                 // force compare match
+  TCCRA  = 0;                        // disable OC1A control by timer
+  OCDDR |= bit(OCBIT);               // enable OC1A pin
 
   // wait through beginning of header gap (22 bytes of 0x4F)
-  TCCR1B |= bit(WGM12);           // WGM12:10 = 010 => clear-timer-on-compare (CTC) mode 
-  TCNT1 = 0;                      // reset timer
-  OCR1A = 352 * bitlen;           // 352 MFM bit lengths (22 bytes * 8 bits/byte * 2 MFM bits/data bit) * cycles/MFM bit
-  TIFR1 = bit(OCF1A);             // clear OCF1A
-  while( !(TIFR1 & bit(OCF1A)) ); // wait for OCF1A
-  TIFR1 = bit(OCF1A);             // clear OCF1A
-  OCR1A = 255;                    // clear OCR1H byte (we only modify OCR1L below)
+  TCCRB |= bit(WGM2);             // WGMx2:10 = 010 => clear-timer-on-compare (CTC) mode 
+  TCNT = 0;                       // reset timer
+  OCR = 352 * bitlen;             // 352 MFM bit lengths (22 bytes * 8 bits/byte * 2 MFM bits/data bit) * cycles/MFM bit
+  TIFR = bit(OCF);                // clear OCFx
+  while( !(TIFR & bit(OCF)) );    // wait for OCFx
+  OCR = 255;                      // clear OCRH byte (we only modify OCRL below)
+  TIFR = bit(OCF);                // clear OCFx
 
   // set WRITEGATE to OUTPUT (pulls it low)
-  DDRB |= 0x04;
+  WGPORT |= bit(WGBIT);
 
   // enable OC1A output pin control by timer (WRITE_DATA), initially high
-  TCCR1A  = bit(COM1A0); // COM1A1:0 =  01 => toggle OC1A on compare match
+  TCCRA  = bit(COMA0); // COMxA1:0 =  01 => toggle OC1A on compare match
 
   asm volatile
     (// define GETNEXTBIT macro for getting next data bit into carry (4/9 cycles)
@@ -446,6 +553,8 @@ static void write_data(byte bitlen, byte *buffer, unsigned int n)
      "          add   r18, %0\n"
 
      // write 12 bytes (96 bits) of "0" (i.e. 96 "10" sequences, i.e. short pulses)
+     "          ldi     r20, 0\n"        
+     "          sts     TCNTL, r20\n"    //       reset timer
      "          ldi     r20, 96\n"       //       initialize counter
      "wri:      WRITEPULSE 1\n"          //       write short pulse
      "          dec     r20\n"           //       decremet counter
@@ -473,7 +582,7 @@ static void write_data(byte bitlen, byte *buffer, unsigned int n)
      "          WRITEPULSE 2\n"          //       write medium pulse
 
      // start writing data
-     "          sts     0x88, r16\n"     // (2)   set up timer for "01" sequence
+     "          sts     OCRL, r16\n"     // (2)   set up timer for "01" sequence
      "          ldi     r21, 0\n"        // (1)   initialize bit counter to fetch next byte
 
      // just wrote a "1" bit => must be followed by either "01" (for "1" bit) or "00" (for "0" bit)
@@ -481,13 +590,13 @@ static void write_data(byte bitlen, byte *buffer, unsigned int n)
      "wro:      GETNEXTBIT\n"            // (4/9) fetch next data bit into carry
      "          brcs    wro1\n"          // (1/2) jump if "1"
      // next bit is "0" => write "00"
-     "          lds     r19,  0x88\n"    // (2)   get current OCR1AL value
+     "          lds     r19,  OCRL\n"    // (2)   get current OCRxAL value
      "          add     r19,  %0\n"      // (2)   add one-bit time
-     "          sts     0x88, r19\n"     // (2)   set new OCR1AL value
+     "          sts     OCRL, r19\n"     // (2)   set new OCRxAL value
      "          rjmp    wre\n"           // (2)   now even
      // next bit is "1" => write "01"
      "wro1:     WRITEPULSE\n"            // (7)   wait and write pulse
-     "          sts     0x88, r16\n"     // (2)   set up timer for another "01" sequence
+     "          sts     OCRL, r16\n"     // (2)   set up timer for another "01" sequence
      "          rjmp    wro\n"           // (2)   still odd
 
      // just wrote a "0" bit, (i.e. either "10" or "00") where time for the trailing "0" was already added
@@ -496,14 +605,14 @@ static void write_data(byte bitlen, byte *buffer, unsigned int n)
      "          brcs    wre1\n"          // (1/2) jump if "1"
      // next bit is "0" => write "10"
      "          WRITEPULSE\n"            // (7)   wait and write pulse
-     "          sts     0x88, r16\n"     // (2)   set up timer for another "10" sequence
+     "          sts     OCRL, r16\n"     // (2)   set up timer for another "10" sequence
      "          rjmp    wre\n"           // (2)   still even
      // next bit is "1" => write "01"
-     "wre1:     lds     r19,  0x88\n"    // (2)   get current OCR1AL value
+     "wre1:     lds     r19,  OCRL\n"    // (2)   get current OCRxAL value
      "          add     r19,  %0\n"      // (2)   add one-bit time
-     "          sts     0x88, r19\n"     // (2)   set new OCR1AL value
+     "          sts     OCRL, r19\n"     // (2)   set new OCRxAL value
      "          WRITEPULSE\n"            // (7)   wait and write pulse
-     "          sts     0x88, r16\n"     // (2)   set up timer for "01" sequence
+     "          sts     OCRL, r16\n"     // (2)   set up timer for "01" sequence
      "          rjmp    wro\n"           // (2)   now odd
 
      // done writing
@@ -514,13 +623,13 @@ static void write_data(byte bitlen, byte *buffer, unsigned int n)
      : "r16", "r17", "r18", "r19", "r20", "r21"); // clobbers
 
   // set WRITEGATE back to input (releases it HIGH)
-  DDRB &= ~0x04;
+  WGPORT &= ~bit(WGBIT);
 
-  // COM1A1:0 = 00 => disconnect OC1A (will go high)
-  TCCR1A = 0;
+  // COMxA1:0 = 00 => disconnect OC1A (will go high)
+  TCCRA = 0;
 
-  // WGM12:10 = 000 => Normal timer mode
-  TCCR1B &= ~bit(WGM12);
+  // WGMx2:10 = 000 => Normal timer mode
+  TCCRB &= ~bit(WGM2);
 }
 
 
@@ -562,41 +671,41 @@ static byte format_track(byte driveType, byte bitlen, byte track, byte side)
   noInterrupts();
 
   // make sure OC1A is high before we enable WRITE_GATE
-  DDRB   &= ~0x02;                     // disable OC1A pin
-  TCCR1A  = bit(COM1A1) | bit(COM1A0); // set OC1A on compare match
-  TCCR1C |= bit(FOC1A);                // force compare match
-  TCCR1A  = 0;                         // disable OC1A control by timer
-  DDRB   |= 0x02;                      // enable OC1A pin
+  OCDDR  &= ~bit(OCBIT);             // disable OC1A pin
+  TCCRA  = bit(COMA1) | bit(COMA0);  // set OC1A on compare match
+  TCCRC |= bit(FOC);                 // force compare match
+  TCCRA  = 0;                        // disable OC1A control by timer
+  OCDDR |= bit(OCBIT);               // enable OC1A pin
 
   // reset timer and overrun flags
-  TCNT1 = 0;
-  TIFR1 = bit(TOV1);
+  TCNT = 0;
+  TIFR = bit(TOV);
 
   // wait for start of index hole
   if( !wait_index_hole() ) { interrupts(); return S_NOINDEX; }
 
-  TCCR1B |= bit(WGM12);  // WGM12:10 = 010 => clear-timer-on-compare (CTC) mode 
-  TCNT1 = 0;             // reset timer
-  OCR1A = 32;            // clear OCR1H byte (we only modify OCR1L below)
-  TIFR1 = bit(OCF1A);    // clear OCF1A
+  TCCRB |= bit(WGM2);   // WGMx2:10 = 010 => clear-timer-on-compare (CTC) mode 
+  TCNT = 0;             // reset timer
+  OCR = 32;             // clear OCRxH byte (we only modify OCRxL below)
+  TIFR = bit(OCF);      // clear OCFx
 
   // set WRITEGATE to OUTPUT (pulls it low)
-  DDRB |= 0x04;
+  WGPORT |= bit(WGBIT);
 
   // enable OC1A output pin control by timer (WRITE_DATA), initially high
-  TCCR1A  = bit(COM1A0); // COM1A1:0 =  01 => toggle OC1A on compare match
+  TCCRA  = bit(COMA0); // COMxA1:0 =  01 => toggle OC1A on compare match
 
   asm volatile
     (".macro    WRTPS\n"
-     "          sts   0x88, r16\n"
+     "          sts   OCRL, r16\n"
      "          call  waitp\n"    
      ".endm\n"
      ".macro    WRTPM\n"
-     "          sts   0x88, r17\n"
+     "          sts   OCRL, r17\n"
      "          call  waitp\n"
      ".endm\n"
      ".macro    WRTPL\n"
-     "          sts   0x88, r18\n"
+     "          sts   OCRL, r18\n"
      "          call  waitp\n"
      ".endm\n"
 
@@ -668,7 +777,7 @@ static byte format_track(byte driveType, byte bitlen, byte track, byte side)
      //  L S S S S S  M  S  M  M  M S S   M  M  M  M S S   ...
      // => SMMMSS (MMMMSS)x49
      "          ldi    r20, 49\n"           // (1) write 49 gap bytes
-     "          WRTPS\n"                   // write short  pulse
+     "          WRTPS\n"                    // write short  pulse
      "          call   wrtgap2\n"           //     returns 20 cycles after final pulse was written
 
      // 6) ---------- 12x 0x00
@@ -708,7 +817,7 @@ static byte format_track(byte driveType, byte bitlen, byte track, byte side)
      //  S   L  M   L  M   ...  ?  ?  M  M S S
      // => (write pre-calculated bytes, starting odd)
      // worst case needs 20 cycles before timer is initialized
-     "          sts     0x88, r16\n"     // (2)   set up timer for "01" sequence
+     "          sts     OCRL, r16\n"     // (2)   set up timer for "01" sequence
      "          ldi     r21, 0\n"        // (1)   initialize bit counter to fetch next byte
      "          ldi     r26, 8\n"        // (1)   initialize byte counter (8 bytes to write)
      // just wrote a "1" bit => must be followed by either "01" (for "1" bit) or "00" (for "0" bit)
@@ -722,13 +831,13 @@ static byte format_track(byte driveType, byte bitlen, byte track, byte side)
      "fio0:     rol     r20\n"           // (1)   get next data bit into carry
      "          brcs    fio1\n"          // (1/2) jump if "1"
      // next bit is "0" => write "00"
-     "          lds     r19,  0x88\n"    // (2)   get current OCR1AL value
+     "          lds     r19,  OCRL\n"    // (2)   get current OCRxAL value
      "          add     r19,  %0\n"      // (2)   add one-bit time
-     "          sts     0x88, r19\n"     // (2)   set new OCR1AL value
+     "          sts     OCRL, r19\n"     // (2)   set new OCRxAL value
      "          rjmp    fie\n"           // (2)   now even
      // next bit is "1" => write "01"
      "fio1:     WRITEPULSE\n"            // (7)   wait and write pulse
-     "          sts     0x88, r16\n"     // (2)   set up timer for another "01" sequence
+     "          sts     OCRL, r16\n"     // (2)   set up timer for another "01" sequence
      "          rjmp    fio\n"           // (2)   still odd
      // just wrote a "0" bit, (i.e. either "10" or "00") where time for the trailing "0" was already added
      // to the pulse length (have time to fetch next bit during the already-added "0")
@@ -742,14 +851,14 @@ static byte format_track(byte driveType, byte bitlen, byte track, byte side)
      "          brcs    fie1\n"          // (1/2) jump if "1"
      // next bit is "0" => write "10"
      "          WRITEPULSE\n"            // (7)   wait and write pulse
-     "          sts     0x88, r16\n"     // (2)   set up timer for another "10" sequence
+     "          sts     OCRL, r16\n"     // (2)   set up timer for another "10" sequence
      "          rjmp    fie\n"           // (2)   still even
      // next bit is "1" => write "01"
-     "fie1:     lds     r19,  0x88\n"    // (2)   get current OCR1AL value
+     "fie1:     lds     r19,  OCRL\n"    // (2)   get current OCRxAL value
      "          add     r19,  %0\n"      // (2)   add one-bit time
-     "          sts     0x88, r19\n"     // (2)   set new OCR1AL value
+     "          sts     OCRL, r19\n"     // (2)   set new OCRxAL value
      "          WRITEPULSE\n"            // (7)   wait and write pulse
-     "          sts     0x88, r16\n"     // (2)   set up timer for "01" sequence
+     "          sts     OCRL, r16\n"     // (2)   set up timer for "01" sequence
      "          rjmp    fio\n"           // (2)   now odd
      "fidone:   \n"
 
@@ -856,7 +965,8 @@ static byte format_track(byte driveType, byte bitlen, byte track, byte side)
      // ---------- track format done => write GAP bytes (0x4E) until INDEX hole seen
      "ftdone:   ldi    r20, 1\n"           // (1)   write one byte
      "          call   wrtgap\n"           //       returns 20 cycles after final pulse was written
-     "          sbic   0x09, 7\n"          // (1/2) skip next instruction if PIND7 (INDEX) is LOW
+     "          lds    r20, IDXPORT\n"     // (2)   read INDEX signal
+     "          sbrc   r20, IDXBIT\n"      // (1/2) skip next instruction if PIND7 (INDEX) is LOW
      "          rjmp   ftdone\n"           // (2)   write more gap bytes
      "          rjmp   ftend\n"            //       done
 
@@ -902,11 +1012,11 @@ static byte format_track(byte driveType, byte bitlen, byte track, byte side)
      
      // wait for pulse to be written
      // => returns 14 cycles (max) after pulse is written (including return statement)
-     "waitp:    sbis  0x16,   1\n"         // (1/2) skip next instruction if OCF1A is set
+     "waitp:    sbis  TIFR, OCF\n"         // (1/2) skip next instruction if OCFx is set
      "          rjmp  .-4\n"               // (2)   wait more
-     "          ldi   r19,  0x80\n"        // (1)
-     "          sts   0x82, r19\n"         // (2)   set OCP1 back HIGH (was set LOW when timer expired)
-     "          sbi   0x16,   1\n"         // (2)   reset OCF1A (output compare flag)
+     "          ldi   r19,  FOC\n"         // (1)
+     "          sts   TCCRC, r19\n"        // (2)   set OCP back HIGH (was set LOW when timer expired)
+     "          sbi   TIFR, OCF\n"         // (2)   reset OCFx (output compare flag)
      "          ret\n"                     // (4)   return
 
      "ftend:\n"
@@ -916,13 +1026,13 @@ static byte format_track(byte driveType, byte bitlen, byte track, byte side)
      : "r16", "r17", "r18", "r19", "r20", "r21", "r26", "r27"); // clobbers
 
   // set WRITEGATE back to input (releases it HIGH)
-  DDRB &= ~0x04;
+  WGPORT &= ~bit(WGBIT);
 
-  // COM1A1:0 = 00 => disconnect OC1A (will go high)
-  TCCR1A = 0;
+  // COMxA1:0 = 00 => disconnect OC1A (will go high)
+  TCCRA = 0;
 
-  // WGM12:10 = 000 => Normal timer mode
-  TCCR1B &= ~bit(WGM12);
+  // WGMx2:10 = 000 => Normal timer mode
+  TCCRB &= ~bit(WGM2);
 
   interrupts();
 
@@ -1191,25 +1301,25 @@ byte ArduinoFDCClass::getBitLength()
 
         case DT_5_DDonHD:
           {
-            TCCR1A = 0;
-            TCCR1B = bit(CS10);  // start timer 1 with /1 prescaler
-            TCCR1C = 0;
+            TCCRA = 0;
+            TCCRB = bit(CS0);  // start timer 1 with /1 prescaler
+            TCCRC = 0;
 
             // return with error if index hole can't be found
             if( !wait_index_hole() ) return 0;
 
             // switch timer to /64 prescaler
-            TCCR1B = bit(CS10) | bit(CS11);
+            TCCRB = bit(CS0) | bit(CS1);
 
             // build average tick count (4us/tick) over 4 revolutions
             unsigned long l = 0;
             for(byte i=0; i<4; i++)
               {
                 if( !wait_index_hole() ) return 0;
-                l += TCNT1;
+                l += TCNT;
               }
 
-            TCCR1B = 0; // turn off timer 1
+            TCCRB = 0; // turn off timer 1
 
             // for 300 RPM (200 ms/rotation) data rate is 250 mbps => 32 cycles/bit
             // for 360 RPM (166 ms/rotation) data rate is 300 mbps => 27 cycles/bit
@@ -1258,9 +1368,9 @@ byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
   if( bitLength==0 ) return S_NOTREADY;
 
   // set up timer1
-  TCCR1A = 0;
-  TCCR1B = bit(CS10); // falling edge input capture, prescaler 1, no output compare
-  TCCR1C = 0;
+  TCCRA = 0;
+  TCCRB = bit(CS0); // falling edge input capture, prescaler 1, no output compare
+  TCCRC = 0;
 
   // reading data is very time sensitive so we can't have interrupts
   noInterrupts();
@@ -1269,32 +1379,36 @@ byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
   res = wait_header(bitLength, -1, side, sector);
 
   // found the sector header but it's not on the correct track => go to correct track and check again
-  if( track>=geometry[driveType].numTracks ) return S_NOHEADER;
-  if( res==S_OK && header[1]!=track ) { interrupts(); step_tracks(driveType, track-header[1]); noInterrupts(); res = wait_header(bitLength, track, side, sector); }
-
-  // couldn't find a header => step to correct track by going to track 0 and then stepping out and check again
-  if( res!=S_OK ) { interrupts(); step_to_track0(); step_tracks(driveType, track); noInterrupts(); res = wait_header(bitLength, track, side, sector); }
-
-  if( res==S_OK )
+  if( track>=geometry[driveType].numTracks ) 
+    res = S_NOHEADER;
+  else
     {
-      // wait for data sync mark and read data
-      if( read_data(bitLength, buffer, 515, false)==S_OK )
+      if( res==S_OK && header[1]!=track ) { interrupts(); step_tracks(driveType, track-header[1]); noInterrupts(); res = wait_header(bitLength, track, side, sector); }
+      
+      // couldn't find a header => step to correct track by going to track 0 and then stepping out and check again
+      if( res!=S_OK ) { interrupts(); step_to_track0(); step_tracks(driveType, track); noInterrupts(); res = wait_header(bitLength, track, side, sector); }
+      
+      if( res==S_OK )
         {
-          if( buffer[0]!=0xFB )
-            { 
+          // wait for data sync mark and read data
+          if( read_data(bitLength, buffer, 515, false)==S_OK )
+            {
+              if( buffer[0]!=0xFB )
+                { 
 #ifdef DEBUG
-              Serial.println(F("Unexpected record identifier")); 
-              for(int i=0; i<7; i++) { Serial.print(buffer[i], HEX); Serial.write(' '); }
-              Serial.println();
+                  Serial.println(F("Unexpected record identifier")); 
+                  for(int i=0; i<7; i++) { Serial.print(buffer[i], HEX); Serial.write(' '); }
+                  Serial.println();
 #endif
-              res = S_INVALIDID;
-            }
-          else if( calc_crc(buffer, 513) != 256*buffer[513]+buffer[514] )
-            { 
+                  res = S_INVALIDID;
+                }
+              else if( calc_crc(buffer, 513) != 256*buffer[513]+buffer[514] )
+                { 
 #ifdef DEBUG
-              Serial.print(F("Data CRC error. Found: ")); Serial.print(256*buffer[513]+buffer[514], HEX); Serial.print(", expected: "); Serial.println(calc_crc(buffer, 513), HEX);
+                  Serial.print(F("Data CRC error. Found: ")); Serial.print(256*buffer[513]+buffer[514], HEX); Serial.print(", expected: "); Serial.println(calc_crc(buffer, 513), HEX);
 #endif
-              res = S_CRC; 
+                  res = S_CRC; 
+                }
             }
         }
     }
@@ -1309,7 +1423,7 @@ byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
   if( turnMotorOff ) motorOff();
 
   // stop timer
-  TCCR1B = 0;
+  TCCRB = 0;
       
   return res;
 }
@@ -1345,9 +1459,9 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
   if( bitLength==0 ) return S_NOTREADY;
 
   // set up timer1
-  TCCR1A = 0;
-  TCCR1B = bit(CS10); // select falling edge input capture, prescaler 1, no output compare
-  TCCR1C = 0;
+  TCCRA = 0;
+  TCCRB = bit(CS0); // select falling edge input capture, prescaler 1, no output compare
+  TCCRC = 0;
 
   if( is_write_protected() )
     res = S_READONLY;
@@ -1370,28 +1484,32 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
       res = wait_header(bitLength, -1, side, sector);
 
       // found the sector header but it's not on the correct track => go to correct track and check again
-      if( track>=geometry[driveType].numTracks ) return S_NOHEADER;
-      if( res==S_OK && header[1]!=track ) { interrupts(); step_tracks(driveType, track-header[1]); noInterrupts(); res = wait_header(bitLength, track, side, sector); }
-
-      // couldn't find a header => step to correct track by going to track 0 and then stepping out and check again
-      if( res!=S_OK ) { interrupts(); step_to_track0(); step_tracks(driveType, track); noInterrupts(); res = wait_header(bitLength, track, side, sector); }
-  
-      // if we found the header then write the data
-      if( res==S_OK ) 
+      if( track>=geometry[driveType].numTracks ) 
+        res = S_NOHEADER;
+      else
         {
-          write_data(bitLength, buffer, 516);
-
-          // if we are supposed to verify the write then do so now
-          if( verify )
-            {
-              // wait for sector header
-              res = wait_header(bitLength, track, side, sector);
+          if( res==S_OK && header[1]!=track ) { interrupts(); step_tracks(driveType, track-header[1]); noInterrupts(); res = wait_header(bitLength, track, side, sector); }
           
-              // wait for data sync mark and compare the data
-              if( res==S_OK ) res = read_data(bitLength, buffer, 515, true);
+          // couldn't find a header => step to correct track by going to track 0 and then stepping out and check again
+          if( res!=S_OK ) { interrupts(); step_to_track0(); step_tracks(driveType, track); noInterrupts(); res = wait_header(bitLength, track, side, sector); }
+          
+          // if we found the header then write the data
+          if( res==S_OK ) 
+            {
+              write_data(bitLength, buffer, 516);
+              
+              // if we are supposed to verify the write then do so now
+              if( verify )
+                {
+                  // wait for sector header
+                  res = wait_header(bitLength, track, side, sector);
+                  
+                  // wait for data sync mark and compare the data
+                  if( res==S_OK ) res = read_data(bitLength, buffer, 515, true);
+                }
             }
         }
-
+     
       // interrupts are ok again
       interrupts();
     }
@@ -1403,7 +1521,7 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
   if( turnMotorOff ) motorOff();
 
   // stop timer
-  TCCR1B = 0;
+  TCCRB = 0;
       
   return res;
 }
@@ -1437,9 +1555,9 @@ byte ArduinoFDCClass::formatDisk(byte fromTrack, byte toTrack)
   byte bitLength = getBitLength();
 
   // set up timer1
-  TCCR1A = 0;
-  TCCR1B = bit(CS10); // prescaler 1
-  TCCR1C = 0;
+  TCCRA = 0;
+  TCCRB = bit(CS0); // prescaler 1
+  TCCRC = 0;
 
   if( bitLength==0 || !wait_index_hole() )
     res = S_NOTREADY;
@@ -1468,7 +1586,7 @@ byte ArduinoFDCClass::formatDisk(byte fromTrack, byte toTrack)
   if( turnMotorOff ) motorOff();
 
   // stop timer
-  TCCR1B = 0;
+  TCCRB = 0;
 
   return res;
 }
@@ -1536,9 +1654,9 @@ bool ArduinoFDCClass::haveDisk() const
   bool res = false;
 
   // set up and start timer (prescaler 1), select drive
-  TCCR1A = 0;
-  TCCR1B = bit(CS10);
-  TCCR1C = 0;
+  TCCRA = 0;
+  TCCRB = bit(CS0);
+  TCCRC = 0;
   driveSelect(LOW);
 
   if( motorRunning() )
@@ -1558,7 +1676,7 @@ bool ArduinoFDCClass::haveDisk() const
 
   // de-select drive, stop timer
   driveSelect(HIGH);
-  TCCR1B = 0;
+  TCCRB = 0;
 
   return res;
 }
