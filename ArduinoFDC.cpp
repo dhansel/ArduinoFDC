@@ -48,7 +48,7 @@ asm ("   .equ TIFR,    0x16\n"  // timer 1 flag register
      "   .equ TCNTL,   0x84\n"  // timer 1 counter (low byte)
      "   .equ ICRL,    0x86\n"  // timer 1 input capture register (low byte)
      "   .equ OCRL,    0x88\n"  // timer 1 output compare register (low byte)
-     "   .equ IDXPORT, 0x09\n"  // INDEX pin register (digital pin 7, register PD7)
+     "   .equ IDXPORT, 0x29\n"  // INDEX pin register (digital pin 7, register PD7, accessed via LDS instruction)
      "   .equ IDXBIT,  7\n"     // INDEX pin bit (digital pin 7, register PD7)
      );
 
@@ -634,7 +634,7 @@ static void write_data(byte bitlen, byte *buffer, unsigned int n)
 
 
 
-static byte format_track(byte driveType, byte bitlen, byte track, byte side)
+static byte format_track(byte *buffer, byte driveType, byte bitlen, byte track, byte side)
 {
   // 3.5" DD disk:
   //   writing 95 + 1 + 65 + (7 + 37 + 515 + 69) * 8 + (7 + 37 + 515) bytes
@@ -647,7 +647,7 @@ static byte format_track(byte driveType, byte bitlen, byte track, byte side)
   //   => 5744 bytes per track = 45952 bits
   //   data rate 500 kbit/second, rotation rate 300 RPM (0.2s per rotation)
   //   => 100000 bits unformatted capacity per track
-  byte i, buffer[8*18];
+  byte i;
 
   byte numsec     = geometry[driveType].numSectors;
   byte datagaplen = geometry[driveType].dataGap;
@@ -666,7 +666,6 @@ static byte format_track(byte driveType, byte bitlen, byte track, byte side)
       *ptr++ = crc & 255; // CRC
       *ptr++ = 0x4E;      // first byte of post-data gap
     }
-  ptr = buffer;
 
   noInterrupts();
 
@@ -1527,7 +1526,7 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
 }
 
 
-byte ArduinoFDCClass::formatDisk(byte fromTrack, byte toTrack)
+byte ArduinoFDCClass::formatDisk(byte *buffer, byte fromTrack, byte toTrack)
 {
   byte res = S_OK;
   
@@ -1572,9 +1571,9 @@ byte ArduinoFDCClass::formatDisk(byte fromTrack, byte toTrack)
       for(byte track=fromTrack; track<=toTrack && track<numTracks; track++)
         {
           digitalWriteOC(PIN_SIDE, HIGH);
-          res = format_track(driveType, bitLength, track, 0); if( res!=S_OK ) break;
+          res = format_track(buffer, driveType, bitLength, track, 0); if( res!=S_OK ) break;
           digitalWriteOC(PIN_SIDE, LOW);
-          res = format_track(driveType, bitLength, track, 1); if( res!=S_OK ) break;
+          res = format_track(buffer, driveType, bitLength, track, 1); if( res!=S_OK ) break;
           if( track<numTracks-1 ) step_tracks(driveType, 1);
         }
     }

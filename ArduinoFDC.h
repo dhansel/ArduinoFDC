@@ -88,14 +88,14 @@ class ArduinoFDCClass
   // set the density pin mode for the currently selected drive
   void setDensityPinMode(enum DensityPinMode mode);
   
-  // Read a sector from disk (track 0..79, side 0..1, sector 1..9),
+  // Read a sector from disk,
   // buffer MUST have a size of at least 516 bytes. 
   // IMPORTANT: On successful return, the 512 bytes of sector data 
   //            read will be in buffer[1..512] (NOT: 0..511!)
   // See error codes above for possible return values
   byte readSector(byte track, byte side, byte sector, byte *buffer);
 
-  // Write a sector to disk (track 0..79, side 0..1, sector 1..9),
+  // Write a sector to disk,
   // buffer MUST have a size of at least 516 bytes.
   // IMPORTANT: The 512 bytes of sector data to be written
   //            must be in buffer[1..512] (NOT: 0..511!)
@@ -104,12 +104,14 @@ class ArduinoFDCClass
   // See error codes above for possible return values
   byte writeSector(byte track, byte side, byte sector, byte *buffer, bool verify);
 
-  // Formats a disk (2 sides, 80 tracks per side, 9 sectors per track)
+  // Formats a disk
+  // buffer is needed to store temporary data while formatting and MUST have
+  // a size of at least 144 bytes.
   // All sector data is initialized with 0xF6.
   // See error codes above for possible return values
   // IMPORTANT: No DOS file system is initialized, i.e. DOS or Windows
   //            will NOT recognize this as a valid disk
-  byte formatDisk(byte fromTrack=0, byte toTrack=255);
+  byte formatDisk(byte *buffer, byte fromTrack=0, byte toTrack=255);
 
   // Turn the disk drive motor on. The readSector/writeSector/formatDisk 
   // functions will turn on the motor automatically if it is not running 

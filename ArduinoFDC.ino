@@ -467,7 +467,7 @@ void arduDOS()
               byte st;
               ArduinoFDC.motorOn();
               f_unmount("0:");
-              if( strstr(cmd, "/q") || (st=ArduinoFDC.formatDisk())==S_OK )
+              if( strstr(cmd, "/q") || (st=ArduinoFDC.formatDisk(FatFs.win))==S_OK )
                 {
                   Serial.println(F("Initializing file system...\n"));
                   FRESULT fr = f_mkfs ("0:", &param, FatFs.win, 512);
@@ -858,8 +858,9 @@ void monitor()
           if( confirm_formatting() )
             {
               Serial.println(F("Formatting disk..."));
-              byte status = ArduinoFDC.formatDisk(n>1 ? a1 : 0, n>2 ? a2 : 255);
+              byte status = ArduinoFDC.formatDisk(databuffer, n>1 ? a1 : 0, n>2 ? a2 : 255);
               if( status!=S_OK ) print_error(status);
+              //memset(databuffer, 513, 0);
             }
         }
 #ifdef USE_XMODEM
