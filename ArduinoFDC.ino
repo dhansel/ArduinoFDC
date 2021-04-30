@@ -860,7 +860,7 @@ void monitor()
               Serial.println(F("Formatting disk..."));
               byte status = ArduinoFDC.formatDisk(databuffer, n>1 ? a1 : 0, n>2 ? a2 : 255);
               if( status!=S_OK ) print_error(status);
-              //memset(databuffer, 513, 0);
+              memset(databuffer, 0, 513);
             }
         }
 #ifdef USE_XMODEM
