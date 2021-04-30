@@ -210,8 +210,13 @@ The function returns 0 if writing succeeded. Otherwise an error code is returned
 
 **IMPORTANT:** The sector data to be written must be in buffer[1..512] (**NOT** buffer[0..511])
 
-#### `bool ArduinoFDC.formatDisk()`
+#### `bool ArduinoFDC.formatDisk(byte *buffer, byte from_track=0, byte to_track=255)`
 Formats a floppy disk according to the format specified by the "setDriveType()" function.
+A subset of tracks can be formatted by specifying the from_track and to_track parameters.
+
+A buffer of size at least 144 bytes is needed to store temporary data during formatting.
+The buffer is passed in as an argument to allow re-using other buffers in your sketch.
+If you do not have a buffer to be re-used, just declare `byte buffer[144]` before calling formatDisk().
 
 This function does **not** set up any file system on the disk. It only sets up the 
 low-level sector structure that allows reading and writing of sectors (and fills all
