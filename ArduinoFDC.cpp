@@ -654,7 +654,7 @@ static byte format_track(byte *buffer, byte driveType, byte bitlen, byte track, 
 
   // pre-compute ID records
   byte *ptr = buffer;
-  for(i=0; i<18; i++)
+  for(i=0; i<numsec; i++)
     {
       *ptr++ = 0xFE;      // ID mark
       *ptr++ = track;     // cylinder number
