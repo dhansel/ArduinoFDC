@@ -328,19 +328,19 @@ static byte read_data(byte bitlen, byte *buffer, unsigned int n, byte verify)
      "  .if \\length == 1\n"           //       waiting for short pule?
      "        cp      r22, r16\n"      // (1)   compare r22 to min medium pulse
      "        brlo   .+2\n"            // (1/2) skip jump if less
-     "        rjmp   \\dst\n"          // (3)   success => jump to destination
+     "        rjmp   \\dst\n"          // (3)   not the expected pulse => jump to dst
      "  .else \n"
      "    .if \\length == 2\n"         // waiting for medium pulse?
      "        cp      r16, r22\n"      // (1)   min medium pulse < r22? => carry set if so
      "        brcc    .+2\n"           // (1/2) skip next instruction if carry is clear
      "        cp      r22, r17\n"      // (1)   r22 < min long pulse? => carry set if so
      "        brcs   .+2\n"            // (1/2) skip jump if greater
-     "        rjmp   \\dst\n"          // (3)   success => jump to destination
+     "        rjmp   \\dst\n"          // (3)   not the expected pulse => jump to dst
      "    .else\n"
      "      .if \\length == 3\n" 
      "        cp      r22, r17\n"      // (1)   min long pulse < r22?
      "        brsh   .+2\n"            // (1/2) skip jump if greater
-     "        rjmp   \\dst\n"          // (3)   success => jump to destination
+     "        rjmp   \\dst\n"          // (3)   not the expected pulse => jump to dst
      "      .endif\n"
      "    .endif\n"
      "  .endif\n"
