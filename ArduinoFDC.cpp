@@ -304,17 +304,16 @@ static byte read_data(byte bitlen, byte *buffer, unsigned int n, byte verify)
     (
      // define READPULSE macro (wait for pulse)
      // macro arguments: 
-     //         length: none => just wait for pulse, don't check     ( 9 cycles)
-     //                 1    => wait for pulse and jump if short  (12/14 cycles)
-     //                 2    => wait for pulse and jump if medium (14/16 cycles)
-     //                 3    => wait for pulse and jump if long   (12/14 cycles)
-     //         dst:    label to jump to if pulse found
+     //         length: none => just wait for pulse, don't check         ( 9 cycles)
+     //                 1    => wait for pulse and jump if NOT short  (12/14 cycles)
+     //                 2    => wait for pulse and jump if NOT medium (14/16 cycles)
+     //                 3    => wait for pulse and jump if NOT long   (12/14 cycles)
+     //         dst:    label to jump to if DIFFERENT pulse found
      // 
      // on entry: r16 contains minimum length of medium pulse
      //           r17 contains minimum length of long   pulse
      //           r18 contains time of previous pulse
-     // on exit:  carry is set iff the expected pulse was seen
-     //           r17 is updated to the time of this pulse
+     // on exit:  r18 is updated to the time of this pulse
      //           r22 contains the pulse length in timer ticks (=processor cycles)     
      // CLOBBERS: r19
      ".macro READPULSE length=0,dst=undefined\n"
