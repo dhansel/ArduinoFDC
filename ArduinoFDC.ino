@@ -674,7 +674,7 @@ void monitor()
       if( cmd=='r' && n>=3 )
         {
           track=a1; sector=a2; head= (n==3) ? 0 : a3;
-          if( head>=0 && head<2 && track>=0 && track<ArduinoFDC.numTracks() && sector>=1 /*&& sector<=ArduinoFDC.numSectors()*/ )
+          if( head>=0 && head<2 && track>=0 && track<ArduinoFDC.numTracks() && sector>=1 && sector<=ArduinoFDC.numSectors() )
             {
               Serial.print(F("Reading track ")); Serial.print(track); 
               Serial.print(F(" sector ")); Serial.print(sector);
