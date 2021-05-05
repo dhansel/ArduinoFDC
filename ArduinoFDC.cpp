@@ -424,52 +424,47 @@ static byte read_data(byte bitlen, byte *buffer, unsigned int n, byte verify)
      "        rjmp    rdend\n"         // (2)   nothing to read (only waiting for sync) => end
      "        ldi     r21, 8\n"        // (1)   initialize bit counter (8 bits per byte)
 
-     // even section (no previous unprocessed bits)
+     // odd section (previous data bit was "1", no unprocessed MFM bit)
      // shortest path: 19 cycles, longest path: 34 cycles
      // (longest path only happens when finishing a byte, about every 5-6 pulses)
-     "rde:    READPULSE\n"             // (9)   wait for pulse
-     "        cp      r22, r16\n"      // (1)   pulse length >= min medium pulse?
-     "        brlo    rdes\n"          // (1/2) jump if not
-     "        cp      r22, r17\n"      // (1)   pulse length >= min long pulse?
-     "        brlo    rdem\n"          // (1/2) jump if not
-
-     // long pulse (0001) => read "01", still even
-     "        STOREBIT 0,rddone\n"      // (4/13) store "0" bit
-     "        STOREBIT 1,rddone\n"      // (5/14) store "1" bit
-     "        rjmp    rde\n"            // (2)    back to start (still even)
-
-     // jump target for relative conditional jumps in STOREBIT macro
-     "rddone:  rjmp    rdend\n"
-     
-     // medium pulse (001) => read "0", now odd
-     "rdem:   STOREBIT 0,rddone\n"      // (4/13) store "0" bit
-     "        rjmp    rdo\n"            // (2)   back to start (now odd)
-
-     // short pulse (01) => read "1", still even
-     "rdes:   STOREBIT 1,rddone\n"      // (5/14) store "1" bit
-     "        rjmp    rde\n"            // (2)    back to start (still even)
-
-     // odd section (the previous pulse ended with a "1" that was not yet processed)
-     // shortest path: 19 cycles, longest  path: 31 cycles
      "rdo:    READPULSE\n"             // (9)   wait for pulse
      "        cp      r22, r16\n"      // (1)   pulse length >= min medium pulse?
      "        brlo    rdos\n"          // (1/2) jump if not
      "        cp      r22, r17\n"      // (1)   pulse length >= min long pulse?
      "        brlo    rdom\n"          // (1/2) jump if not
 
-     // long pulse (10001) => read "01"
+     // long pulse (0001) => read "01", still odd
+     "        STOREBIT 0,rddone\n"      // (4/13) store "0" bit
+     "        STOREBIT 1,rddone\n"      // (5/14) store "1" bit
+     "        rjmp    rdo\n"            // (2)    back to start (still odd)
+
+     // jump target for relative conditional jumps in STOREBIT macro
+     "rddone:  rjmp    rdend\n"
+     
+     // medium pulse (001) => read "0", now even
+     "rdom:   STOREBIT 0,rddone\n"      // (4/13) store "0" bit
+     "        rjmp    rde\n"            // (2)   back to start (now even)
+
+     // short pulse (01) => read "1", still odd
+     "rdos:   STOREBIT 1,rddone\n"      // (5/14) store "1" bit
+     "        rjmp    rdo\n"            // (2)    back to start (still odd)
+
+     // even section (previous data bit was "0", previous MFM "1" bit not yet processed)
+     // shortest path: 19 cycles, longest path: 31 cycles
+     "rde:    READPULSE\n"             // (9)   wait for pulse
+     "        cp      r22, r16\n"      // (1)   pulse length >= min medium pulse?
+     "        brlo    rdes\n"          // (1/2) jump if not
+
+     // either medium pulse (1001) or long pulse (10001) => read "01"
+     // (a long pulse should never occur in this section but it may just be a 
+     //  slightly too long medium pulse so count it as medium)
      "        STOREBIT 0,rdend\n"      // (4/13) store "0" bit
      "        STOREBIT 1,rdend\n"      // (5/14) store "1" bit
-     "        rjmp    rdo\n"           // (2)    back to start (still odd)
-
-     // medium pulse (1001) => read "01"
-     "rdom:   STOREBIT 0,rdend\n"      // (4/13) store "0" bit
-     "        STOREBIT 1,rdend\n"      // (5/14) store "1" bit
-     "        rjmp    rde\n"           // (2)    back to start (now even)
+     "        rjmp    rdo\n"           // (2)    back to start (now odd)
 
      // short pulse (101) => read "0"
-     "rdos:   STOREBIT 0,rdend\n"      // (5/14) store "1" bit
-     "        rjmp    rdo\n"           // (2)    back to start (still odd)
+     "rdes:   STOREBIT 0,rdend\n"      // (5/14) store "0" bit
+     "        rjmp    rde\n"           // (2)    back to start (still even)
 
      "rddiff: ldi     %0, 9\n"         // return status is S_VERIFY (verify error)
      "rdend:\n"
