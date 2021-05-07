@@ -151,7 +151,7 @@ struct DriveGeometryStruct
 };
 
 
-static struct DriveGeometryStruct geometry[6] =
+static struct DriveGeometryStruct geometry[5] =
   {
     {40,  9,  80, 1},  // 5.25" DD (360 KB)
     {40,  9,  80, 2},  // 5.25" DD disk in HD drive (360 KB)
@@ -1063,6 +1063,16 @@ static byte wait_header(byte bitlen, byte track, byte side, byte sector)
                 { Serial.println(F("Header CRC error!")); Serial.flush(); }
 #endif
             }
+#ifdef DEBUG
+          else
+            {
+              static const char hex[16] = "0123456789ABCDEF";
+              Serial.write('H');
+              for(byte i=0; i<5; i++) { Serial.write(hex[header[i]/16]); Serial.write(hex[header[i]&15]); }
+              Serial.write(calc_crc(header, 5) == 256*header[5]+header[6] ? '+' : '-');
+              Serial.write(10);
+            }
+#endif
         }
       else
         return status;
