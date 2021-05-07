@@ -223,6 +223,10 @@ bool xmodemHandlerReceive(unsigned long no, char* data, int size)
 
 #endif
 
+// Some versions of Arduino appear to have problems with the FRESULT type in the print_ff_error
+// function - which reportedly can be fixed by putting a forward declaration here (thanks to rtrimbler!).
+// I am not able to reproduce the error but adding a forward declaration can't hurt.
+void print_ff_error(FRESULT fr);
 
 void print_ff_error(FRESULT fr)
 {
