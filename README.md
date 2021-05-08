@@ -359,7 +359,7 @@ to pins on the Arduino UNO.
 4 | S_NOHEADER  | Sync marks are found but either no sector header or no header with the expected track/side/sector markings | - pins STEP (2), STEPDIR (3), SIDE (6) or GND not properly connected <br/> - bad disk or unknown format <br/> - misaligned disk drive<br/> - invalid track, sector or head number given
 5 | S_INVALIDID | The data record was not started by a 0xFB byte as expected | - bad disk or unknown format
 6 | S_CRC       | The sector data checksum is incorrect | - bad disk or unknown format <br/> - pullup resistors too weak (see note 2 in wiring section)
-7 | S_NOTRACK0  | When trying to move the read head to track 0, the TRACK0 signal was not seen, even after stepping more than 80 tracks. | - pins STEP (2), STEPDIR (3), SELECT (5/13) or TRACK0 (11) not properly connected
+7 | S_NOTRACK0  | When trying to move the read head to track 0, the TRACK0 signal was not seen, even after stepping more than 80 tracks. | - pins STEP (2), STEPDIR (3), SELECT (5/13), TRACK0 (11) or GND not properly connected <br/> - drive does not have power
 8 | S_VERIFY    | When reading back data that was just written, the data did not match | - pins WRITEGATE (10) or WRITEDATA (9) not properly connected<br/>- disk is write protected and WRITEPROTECT (12) pin is not connected <br/> - bad disk
 9 | S_READONLY | Attempting to write to a write-protected disk | - disk is write protected
 
