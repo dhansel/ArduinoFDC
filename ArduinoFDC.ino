@@ -146,7 +146,6 @@ void print_error(byte n)
     case S_NOHEADER  : Serial.print(F("Sector header not found")); break;
     case S_INVALIDID : Serial.print(F("Data record has unexpected id")); break;
     case S_CRC       : Serial.print(F("Data checksum error")); break;
-    case S_NOINDEX   : Serial.print(F("No index hole detected")); break;
     case S_NOTRACK0  : Serial.print(F("No track 0 signal detected")); break;
     case S_VERIFY    : Serial.print(F("Verify after write failed")); break;
     case S_READONLY  : Serial.print(F("Disk is write protected")); break;
@@ -723,7 +722,7 @@ void monitor()
                           Serial.println(F(" => CRC error, trying again"));
                         else
                           {
-                            Serial.print(F("=> "));                 
+                            Serial.print(F(" => "));
                             print_error(status);
                             break;
                           }

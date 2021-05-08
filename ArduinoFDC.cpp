@@ -317,7 +317,7 @@ static byte read_data(byte bitlen, byte *buffer, unsigned int n, byte verify)
      //           r22 contains the pulse length in timer ticks (=processor cycles)     
      // CLOBBERS: r19
      ".macro READPULSE length=0,dst=undefined\n"
-     "        sbis    TIFR, ICF\n"     // (1/2) skip next instruction if timer 1 input capture seen
+     "        sbis    TIFR, ICF\n"     // (1/2) skip next instruction if timer input capture seen
      "        rjmp    .-4\n"           // (2)   wait more 
      "        lds     r19, ICRL\n"     // (2)   get time of input capture (ICR1L, lower 8 bits only)
      "        sbi     TIFR, ICF\n "    // (2)   clear input capture flag
@@ -382,14 +382,14 @@ static byte read_data(byte bitlen, byte *buffer, unsigned int n, byte verify)
 
      // wait for at least 80x "10" (short) pulse followed by "100" (medium) pulse
      "ws0:    ldi         r20, 0\n"    // (1)   initialize "short pulse" counter
-     "        sbis        TIFR, TOV\n" // (1/2) skip next instruction if timer 1 overflow occurred
-     "        rjmp        ws1\n"       // (2)   continue (no overflow)
-     "        sbi         TIFR, TOV\n" // (2)   reset timer 1 overflow flag
+     "ws1:    sbis        TIFR, TOV\n" // (1/2) skip next instruction if timer overflow occurred
+     "        rjmp        ws2\n"       // (2)   continue (no overflow)
+     "        sbi         TIFR, TOV\n" // (2)   reset timer overflow flag
      "        dec         r15\n"       // (1)   overflow happens every 4.096ms, decrement overflow counter
-     "        brne        ws1\n"       // (1/2) continue if less than 256 overflows
+     "        brne        ws2\n"       // (1/2) continue if fewer than 256 overflows
      "        ldi         %0, 3\n"     // (1)   no sync found in 1.048s => return status is is S_NOSYNC
      "        rjmp        rdend\n"     // (2)   done
-     "ws1:    inc         r20\n"       // (1)   increment "short pulse" counter
+     "ws2:    inc         r20\n"       // (1)   increment "short pulse" counter
      "        READPULSE\n"             // (9)   wait for pulse
      "        cp          r22, r16\n"  // (1)   pulse length < min medium pulse?
      "        brlo        ws1\n"       // (1/2) repeat if so
@@ -466,7 +466,7 @@ static byte read_data(byte bitlen, byte *buffer, unsigned int n, byte verify)
      "rdes:   STOREBIT 0,rdend\n"      // (5/14) store "0" bit
      "        rjmp    rde\n"           // (2)    back to start (still even)
 
-     "rddiff: ldi     %0, 9\n"         // return status is S_VERIFY (verify error)
+     "rddiff: ldi     %0, 8\n"         // return status is S_VERIFY (verify error)
      "rdend:\n"
      
      : "=r"(status)                         // outputs
@@ -508,7 +508,7 @@ static void write_data(byte bitlen, byte *buffer, unsigned int n)
   // wait through beginning of header gap (22 bytes of 0x4F)
   TCCRB |= bit(WGM2);             // WGMx2:10 = 010 => clear-timer-on-compare (CTC) mode 
   TCNT = 0;                       // reset timer
-  OCR = 352 * bitlen;             // 352 MFM bit lengths (22 bytes * 8 bits/byte * 2 MFM bits/data bit) * cycles/MFM bit
+  OCR = 352 * bitlen - 256;       // 352 MFM bit lengths (22 bytes * 8 bits/byte * 2 MFM bits/data bit) * cycles/MFM bit - 16us (overhead)
   TIFR = bit(OCF);                // clear OCFx
   while( !(TIFR & bit(OCF)) );    // wait for OCFx
   OCR = 255;                      // clear OCRH byte (we only modify OCRL below)
@@ -675,7 +675,7 @@ static byte format_track(byte *buffer, byte driveType, byte bitlen, byte track, 
   TIFR = bit(TOV);
 
   // wait for start of index hole
-  if( !wait_index_hole() ) { interrupts(); return S_NOINDEX; }
+  if( !wait_index_hole() ) { interrupts(); return S_NOTREADY; }
 
   TCCRB |= bit(WGM2);   // WGMx2:10 = 010 => clear-timer-on-compare (CTC) mode 
   TCNT = 0;             // reset timer
@@ -1037,7 +1037,7 @@ static byte wait_header(byte bitlen, byte track, byte side, byte sector)
 {
   byte attempts = 50;
 
-  // check whether we get any data pulses from the drive at all
+  // check whether we can see any data pulses from the drive at all
   if( !check_pulse() )
     {
 #ifdef DEBUG
@@ -1050,6 +1050,7 @@ static byte wait_header(byte bitlen, byte track, byte side, byte sector)
     {
       // wait for sync sequence and read 7 bytes of data
       byte status = read_data(bitlen, header, 7, false);
+
       if( status==S_OK )
         {
           // make sure this is an ID record and check whether it contains the
@@ -1131,6 +1132,53 @@ static void step_tracks(byte driveType, int tracks)
 }
 
 
+static byte find_sector(byte driveType, byte bitLength, byte track, byte side, byte sector)
+{
+  // select side
+  digitalWriteOC(PIN_SIDE, side>0 ? LOW : HIGH);
+
+  // wait for sector header
+  byte res = wait_header(bitLength, -1, side, sector);
+
+  // if we found the sector header but it's not on the correct track then step to correct track and check again
+  if( res==S_OK && header[1]!=track )
+    {
+      // make sure that the track number in the header we read is sensible
+      if( header[1]<geometry[driveType].numTracks )
+        {
+          // need interrupts for delay() when stepping
+          interrupts();
+          step_tracks(driveType, track-header[1]);
+          noInterrupts();
+
+          res = wait_header(bitLength, track, side, sector);
+        }
+      else
+        res = S_NOHEADER;
+    }
+
+  // if we couldn't find the header then step to correct track by going to track 0 and then stepping out and check again
+  if( res!=S_OK )
+    {
+      // need interrupts for delay() when stepping
+      interrupts();
+      if( step_to_track0() )
+        {
+          step_tracks(driveType, track);
+          noInterrupts();
+          res = wait_header(bitLength, track, side, sector);
+        }
+      else
+        {
+          noInterrupts();
+          res = S_NOTRACK0;
+        }
+    }
+
+  return res;
+}
+
+
 // --------------------------------------------------------------------------------------------------
 
 
@@ -1183,15 +1231,6 @@ void ArduinoFDCClass::begin(enum DriveType driveAType, enum DriveType driveBType
 #if defined(PIN_WRITEPROT)
   pinMode(PIN_WRITEPROT, INPUT_PULLUP);
 #endif
-
-  pinMode(A2, OUTPUT);
-  pinMode(A3, OUTPUT);
-  pinMode(A4, OUTPUT);
-  pinMode(A5, OUTPUT);
-  digitalWrite(A2, LOW);
-  digitalWrite(A3, LOW);
-  digitalWrite(A4, LOW);
-  digitalWrite(A5, LOW);
 
 #if defined(PIN_DENSITY)
   digitalWrite(PIN_DENSITY, LOW);
@@ -1305,7 +1344,7 @@ byte ArduinoFDCClass::getBitLength()
         case DT_5_DDonHD:
           {
             TCCRA = 0;
-            TCCRB = bit(CS0);  // start timer 1 with /1 prescaler
+            TCCRB = bit(CS0);  // start timer with /1 prescaler
             TCCRC = 0;
 
             // return with error if index hole can't be found
@@ -1322,7 +1361,7 @@ byte ArduinoFDCClass::getBitLength()
                 l += TCNT;
               }
 
-            TCCRB = 0; // turn off timer 1
+            TCCRB = 0; // turn off timer
 
             // for 300 RPM (200 ms/rotation) data rate is 250 mbps => 32 cycles/bit
             // for 360 RPM (166 ms/rotation) data rate is 300 mbps => 27 cycles/bit
@@ -1343,14 +1382,11 @@ byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
   byte res = S_OK;
   byte driveType = m_driveType[m_currentDrive];
 
-  // check whether begin() has been called
+  // do some sanity checks
   if( !m_initialized )
-    {
-#ifdef DEBUG
-      Serial.println(F("Not initialized!")); Serial.flush();
-#endif
-      return S_NOTINIT;
-    }
+    return S_NOTINIT;
+  else if( track>=geometry[driveType].numTracks || sector<1 || sector>geometry[driveType].numSectors || side>1 )
+    return S_NOHEADER;
 
   // if motor is not running then turn it on now
   bool turnMotorOff = false;
@@ -1363,34 +1399,25 @@ byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
   // assert DRIVE_SELECT
   driveSelect(LOW);
 
-  // select side
-  digitalWriteOC(PIN_SIDE, side>0 ? LOW : HIGH);
-
-  // get MFM bit length (in processor cycles)
+  // get MFM bit length (in processor cycles, motor must be running for this)
   byte bitLength = getBitLength();
-  if( bitLength==0 ) return S_NOTREADY;
 
-  // set up timer1
-  TCCRA = 0;
-  TCCRB = bit(CS0); // falling edge input capture, prescaler 1, no output compare
-  TCCRC = 0;
-
-  // reading data is very time sensitive so we can't have interrupts
-  noInterrupts();
-
-  // wait for sector header
-  res = wait_header(bitLength, -1, side, sector);
-
-  // found the sector header but it's not on the correct track => go to correct track and check again
-  if( track>=geometry[driveType].numTracks ) 
-    res = S_NOHEADER;
+  if( bitLength==0 )
+    res = S_NOTREADY;
   else
     {
-      if( res==S_OK && header[1]!=track ) { interrupts(); step_tracks(driveType, track-header[1]); noInterrupts(); res = wait_header(bitLength, track, side, sector); }
+      // set up timer
+      TCCRA = 0;
+      TCCRB = bit(CS0); // falling edge input capture, prescaler 1, no output compare
+      TCCRC = 0;
       
-      // couldn't find a header => step to correct track by going to track 0 and then stepping out and check again
-      if( res!=S_OK ) { interrupts(); step_to_track0(); step_tracks(driveType, track); noInterrupts(); res = wait_header(bitLength, track, side, sector); }
+      // reading data is time sensitive so we can't have interrupts
+      noInterrupts();
+
+      // find the requested sector
+      res = find_sector(driveType, bitLength, track, side, sector);
       
+      // if we found the sector then read the data
       if( res==S_OK )
         {
           // wait for data sync mark and read data
@@ -1414,10 +1441,13 @@ byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
                 }
             }
         }
-    }
 
-  // interrupts are ok again
-  interrupts();
+      // interrupts are ok again
+      interrupts();
+
+      // stop timer
+      TCCRB = 0;
+    }
 
   // de-assert DRIVE_SELECT
   driveSelect(HIGH);
@@ -1425,9 +1455,6 @@ byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
   // if we turned the motor on then turn it off again
   if( turnMotorOff ) motorOff();
 
-  // stop timer
-  TCCRB = 0;
-      
   return res;
 }
 
@@ -1437,14 +1464,11 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
   byte res = S_OK;
   byte driveType = m_driveType[m_currentDrive];
 
-  // check whether begin() has been called
+  // do some sanity checks
   if( !m_initialized )
-    {
-#ifdef DEBUG
-      Serial.println(F("Not initialized!")); Serial.flush();
-#endif
-      return S_NOTINIT;
-    }
+    return S_NOTINIT;
+  else if( track>=geometry[driveType].numTracks || sector<1 || sector>geometry[driveType].numSectors || side>1 )
+    return S_NOHEADER;
 
   // if motor is not running then turn it on now
   bool turnMotorOff = false;
@@ -1457,17 +1481,19 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
   // assert DRIVE_SELECT
   driveSelect(LOW);
 
-  // get MFM bit length (in processor cycles)
+  // get MFM bit length (in processor cycles, motor must be running for this)
   byte bitLength = getBitLength();
-  if( bitLength==0 ) return S_NOTREADY;
 
-  // set up timer1
+  // set up timer
   TCCRA = 0;
-  TCCRB = bit(CS0); // select falling edge input capture, prescaler 1, no output compare
+  TCCRB = bit(CS0); // falling edge input capture, prescaler 1, no output compare
   TCCRC = 0;
 
-  if( is_write_protected() )
-    res = S_READONLY;
+  // check write protect (drive must be selected for this)
+  if( bitLength==0 )
+    res = S_NOTREADY;
+  else if( is_write_protected() )
+    res = wait_index_hole() ? S_READONLY : S_NOTREADY;
   else
     {
       // calculate CRC for the sector data
@@ -1477,42 +1503,29 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
       buffer[514] = crc&255;
       buffer[515] = 0x4E; // first byte of post-data gap
   
-      // select side
-      digitalWriteOC(PIN_SIDE, side>0 ? LOW : HIGH);
-
-      // reading/writing data is very time sensitive so we can't have interrupts
+      // writing data is time sensitive so we can't have interrupts
       noInterrupts();
 
-      // wait for sector header
-      res = wait_header(bitLength, -1, side, sector);
+      // find the requested sector
+      res = find_sector(driveType, bitLength, track, side, sector);
 
-      // found the sector header but it's not on the correct track => go to correct track and check again
-      if( track>=geometry[driveType].numTracks ) 
-        res = S_NOHEADER;
-      else
+      // if we found the sector then write the data
+      if( res==S_OK )
         {
-          if( res==S_OK && header[1]!=track ) { interrupts(); step_tracks(driveType, track-header[1]); noInterrupts(); res = wait_header(bitLength, track, side, sector); }
+          // write the sector data
+          write_data(bitLength, buffer, 516);
           
-          // couldn't find a header => step to correct track by going to track 0 and then stepping out and check again
-          if( res!=S_OK ) { interrupts(); step_to_track0(); step_tracks(driveType, track); noInterrupts(); res = wait_header(bitLength, track, side, sector); }
-          
-          // if we found the header then write the data
-          if( res==S_OK ) 
+          // if we are supposed to verify the data then do so now
+          if( verify )
             {
-              write_data(bitLength, buffer, 516);
+              // wait for sector to come around again
+              res = wait_header(bitLength, track, side, sector);
               
-              // if we are supposed to verify the write then do so now
-              if( verify )
-                {
-                  // wait for sector header
-                  res = wait_header(bitLength, track, side, sector);
-                  
-                  // wait for data sync mark and compare the data
-                  if( res==S_OK ) res = read_data(bitLength, buffer, 515, true);
-                }
+              // wait for data sync mark and compare the data
+              if( res==S_OK ) res = read_data(bitLength, buffer, 515, true);
             }
         }
-     
+
       // interrupts are ok again
       interrupts();
     }
@@ -1520,12 +1533,12 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
   // de-assert DRIVE_SELECT
   driveSelect(HIGH);
 
+  // stop timer
+  TCCRB = 0;
+
   // if we turned the motor on then turn it off again
   if( turnMotorOff ) motorOff();
 
-  // stop timer
-  TCCRB = 0;
-      
   return res;
 }
 
@@ -1533,15 +1546,14 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
 byte ArduinoFDCClass::formatDisk(byte *buffer, byte fromTrack, byte toTrack)
 {
   byte res = S_OK;
-  
-  // check whether begin() has been called
+  byte driveType = m_driveType[m_currentDrive];
+  byte numTracks = geometry[driveType].numTracks;
+
+  // do some sanity checks
   if( !m_initialized )
-    {
-#ifdef DEBUG
-      Serial.println(F("Not initialized!")); Serial.flush();
-#endif
-      return S_NOTINIT;
-    }
+    return S_NOTINIT;
+  else if( fromTrack>toTrack || fromTrack >= numTracks )
+    return S_OK;
 
   // if motor is not running then turn it on now
   bool turnMotorOff = false;
@@ -1554,10 +1566,10 @@ byte ArduinoFDCClass::formatDisk(byte *buffer, byte fromTrack, byte toTrack)
   // assert DRIVE_SELECT
   driveSelect(LOW);
 
-  // get MFM bit length (in processor cycles)
+  // get MFM bit length (in processor cycles, motor must be running for this)
   byte bitLength = getBitLength();
 
-  // set up timer1
+  // set up timer
   TCCRA = 0;
   TCCRB = bit(CS0); // prescaler 1
   TCCRC = 0;
@@ -1570,8 +1582,7 @@ byte ArduinoFDCClass::formatDisk(byte *buffer, byte fromTrack, byte toTrack)
     res = S_NOTRACK0;
   else
     {
-      byte driveType = m_driveType[m_currentDrive];
-      byte numTracks = geometry[driveType].numTracks;
+      if( fromTrack>0 ) step_tracks(driveType, fromTrack);
       for(byte track=fromTrack; track<=toTrack && track<numTracks; track++)
         {
           digitalWriteOC(PIN_SIDE, HIGH);

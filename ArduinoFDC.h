@@ -30,10 +30,9 @@
 #define S_NOHEADER   4  // Sector header not found
 #define S_INVALIDID  5  // Sector data record has invalid id
 #define S_CRC        6  // Sector data checksum error
-#define S_NOINDEX    7  // No index hole signal
-#define S_NOTRACK0   8  // No track0 signal
-#define S_VERIFY     9  // Verify after write failed
-#define S_READONLY  10  // Attempt to write to a write-protected disk
+#define S_NOTRACK0   7  // No track0 signal
+#define S_VERIFY     8  // Verify after write failed
+#define S_READONLY   9  // Attempt to write to a write-protected disk
 
 class ArduinoFDCClass
 {
