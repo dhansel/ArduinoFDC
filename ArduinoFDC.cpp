@@ -28,10 +28,10 @@
 #define PIN_MOTORA     4  // can be changed to different pin
 #define PIN_SELECTA    5  // can be changed to different pin
 #define PIN_SIDE       6  // can be changed to different pin
-#define PIN_INDEX      7  // hardwired to pin 7 (PD7) in function format_track()
+#define PIN_INDEX      7  // accesses via IDXPORT/IDXBIT #defines below
 #define PIN_READDATA   8  // must be pin 8 (ICP for timer1)
 #define PIN_WRITEDATA  9  // must be pin 9 (OCP for timer1)
-#define PIN_WRITEGATE 10  // hardwired to pin 10 (PB2) in functions write_data() and format_track()
+#define PIN_WRITEGATE 10  // accessed via WGPORT/WGBIT #defines below
 #define PIN_TRACK0    11  // can be changed to different pin
 #define PIN_WRITEPROT 12  // can be changed to different pin or commented out
 #define PIN_DENSITY   13  // can be changed to different pin or commented out
@@ -67,10 +67,10 @@ asm ("   .equ TIFR,    0x16\n"  // timer 1 flag register
 #define FOC     FOC1A   // force output compare flag
 #define OCR     OCR1A   // timer 1 output compare register
 #define TCNT    TCNT1   // timer 1 counter
-#define IDXPORT PIND    // INDEX pin register (digital pin 7, register PD7)
-#define IDXBIT  7       // INDEX pin bit (digital pin 7, register PD7)
-#define WGPORT  DDRB    // WRITEGATE pin port (digital pin , register PB2)
-#define WGBIT   2       // WRITEGATE pin bit (digital pin , register PB2)
+#define IDXPORT PIND    // INDEX pin port     (digital pin  7, register PD7)
+#define IDXBIT  7       // INDEX pin bit      (digital pin  7, register PD7)
+#define WGPORT  DDRB    // WRITEGATE pin port (digital pin 10, register PB2)
+#define WGBIT   2       // WRITEGATE pin bit  (digital pin 10, register PB2)
 #define OCDDR   DDRB    // DDR controlling WRITEDATA pin
 #define OCBIT   1       // bit for WRITEDATA pin
 
@@ -84,10 +84,10 @@ asm ("   .equ TIFR,    0x16\n"  // timer 1 flag register
 #define PIN_MOTORA    51  // can be changed to different pin
 #define PIN_SELECTA   50  // can be changed to different pin
 #define PIN_SIDE      49  // can be changed to different pin
-#define PIN_INDEX     47  // hardwired to pin 47 (PL2) in function format_track()
+#define PIN_INDEX     47  // accessed via IDXPORT/IDXBIT #defines below
 #define PIN_READDATA  48  // must be pin 48 (ICP for timer5)
 #define PIN_WRITEDATA 46  // must be pin 46 (OCP for timer5)
-#define PIN_WRITEGATE 45  // hardwired to pin 45 (PL4) in functions write_data() and format_track()
+#define PIN_WRITEGATE 45  // accessed via WGPORT/WGBIT #defines below
 #define PIN_TRACK0    44  // can be changed to different pin
 #define PIN_WRITEPROT 43  // can be changed to different pin or commented out
 #define PIN_DENSITY   42  // can be changed to different pin or commented out
@@ -123,10 +123,10 @@ asm ("   .equ TIFR,    0x1A\n"  // timer 5 flag register
 #define FOC     FOC5A   // force output compare flag
 #define OCR     OCR5A   // timer 5 output compare register
 #define TCNT    TCNT5   // timer 5 counter
-#define IDXPORT PINL    // INDEX pin register (digital pin 7, register PD7)
-#define IDXBIT  2       // INDEX pin bit (digital pin 7, register PD7)
-#define WGPORT  DDRL    // WRITEGATE pin port (digital pin , register PB2)
-#define WGBIT   4       // WRITEGATE pin bit (digital pin , register PB2)
+#define IDXPORT PINL    // INDEX pin port     (digital pin 47, register PL2)
+#define IDXBIT  2       // INDEX pin bit      (digital pin 47, register PL2)
+#define WGPORT  DDRL    // WRITEGATE pin port (digital pin 45, register PL4)
+#define WGBIT   4       // WRITEGATE pin bit  (digital pin 45, register PL4)
 #define OCDDR   DDRL    // DDR controlling WRITEDATA pin
 #define OCBIT   3       // bit for WRITEDATA pin
 
@@ -524,7 +524,7 @@ static void write_data(byte bitlen, byte *buffer, unsigned int n)
     (// define GETNEXTBIT macro for getting next data bit into carry (4/9 cycles)
      // on entry: R20         contains the current byte 
      //           R21         contains the bit counter
-     //           X (R26/R27) contains the bit counter
+     //           X (R26/R27) contains the byte counter
      //           Z (R30/R31) contains pointer to data buffer
      ".macro GETNEXTBIT\n"
      "          dec     r21\n"           // (1)   decrement bit counter
