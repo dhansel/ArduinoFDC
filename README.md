@@ -56,9 +56,10 @@ for "Floppy drive twist" for more information).
 **Note 2:**
 It is **highly** recommended (but not entirely necessary) to add a 1k 
 pull-up resistor to +5V to this signal. The Arduino's built-in pull-up
-resistors are very weak and may not pull the signal up quickly enough.
+resistors are very weak (20-50k) and may not pull the signal up quickly enough.
 Without the resistor you may encounter read errors (bad CRC, header not found),
-especially when reading HD disks.
+especially when reading HD disks. Whether it works without the resistor will 
+depend on your specific drive, drive cable, connections and Arduino.
 
 **Note 3:**
 This signal can easily be moved to a different pin on the Arduino by 
