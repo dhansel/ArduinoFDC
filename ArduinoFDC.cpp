@@ -21,7 +21,7 @@
 
 #if defined(__AVR_ATmega328P__)
 
-// input/output pin definitions for Arduino UNO (Atmega328p)
+// -------------------------------  Pin assignments for Arduino UNO/Nano/Pro Mini (Atmega328p)  ------------------------------
 
 #define PIN_STEP       2  // can be changed to different pin
 #define PIN_STEPDIR    3  // can be changed to different pin
@@ -75,9 +75,71 @@ asm ("   .equ TIFR,    0x16\n"  // timer 1 flag register
 #define OCBIT   1       // bit for WRITEDATA pin
 
 
+#elif defined(__AVR_ATmega32U4__)
+
+// -----------------------  Pin assignments for Arduino Leonardo/Micro (Atmega32U4)  --------------------------
+
+#define PIN_STEP       2  // can be changed to different pin
+#define PIN_STEPDIR    3  // can be changed to different pin
+#define PIN_READDATA   4  // must be pin 4 (ICP for timer1)
+#define PIN_MOTORA     5  // can be changed to different pin
+#define PIN_SELECTA    6  // can be changed to different pin
+#define PIN_SIDE       7  // can be changed to different pin
+#define PIN_INDEX      8  // accesses via IDXPORT/IDXBIT #defines below
+#define PIN_WRITEDATA  9  // must be pin 9 (OCP for timer1)
+#define PIN_WRITEGATE 10  // accessed via WGPORT/WGBIT #defines below
+#if defined(ARDUINO_AVR_LEONARDO)
+#define PIN_TRACK0    11  // can be changed to different pin
+#define PIN_WRITEPROT 12  // can be changed to different pin or commented out
+#define PIN_DENSITY   13  // can be changed to different pin or commented out
+#else
+#define PIN_TRACK0    14  // can be changed to different pin
+#define PIN_WRITEPROT 15  // can be changed to different pin or commented out
+#define PIN_DENSITY   16  // can be changed to different pin or commented out
+#endif
+#define PIN_MOTORB    A0  // can be changed to different pin or commented out (together with PIN_SELECTB)
+#define PIN_SELECTB   A1  // can be changed to different pin or commented out (together with PIN_MOTORB)
+
+
+asm ("   .equ TIFR,    0x16\n"  // timer 1 flag register
+     "   .equ TOV,     0\n"     // overflow flag
+     "   .equ OCF,     1\n"     // output compare flag
+     "   .equ ICF,     5\n"     // input capture flag
+     "   .equ TCCRC,   0x82\n"  // timer 1 control register C
+     "   .equ FOC,     0x80\n"  // force output compare flag
+     "   .equ TCNTL,   0x84\n"  // timer 1 counter (low byte)
+     "   .equ ICRL,    0x86\n"  // timer 1 input capture register (low byte)
+     "   .equ OCRL,    0x88\n"  // timer 1 output compare register (low byte)
+     "   .equ IDXPORT, 0x23\n"  // INDEX pin register (digital pin 8, register PB4, accessed via LDS instruction)
+     "   .equ IDXBIT,  4\n"     // INDEX pin bit (digital pin 8, register PB4)
+     );
+
+#define TIFR    TIFR1   // timer 1 flag register
+#define TOV     TOV1    // overflow flag
+#define OCF     OCF1A   // output compare flag
+#define ICF     ICF1    // input capture flag
+#define TCCRA   TCCR1A  // timer 1 control register A
+#define COMA1   COM1A1  // timer 1 output compare mode bit 1
+#define COMA0   COM1A0  // timer 1 output compare mode bit 0
+#define TCCRB   TCCR1B  // timer 1 control register B
+#define CS1     CS11    // timer 1 clock select bit 1
+#define CS0     CS10    // timer 1 clock select bit 0
+#define WGM2    WGM12   // timer 1 waveform mode bit 2
+#define TCCRC   TCCR1C  // timer 1 control register C
+#define FOC     FOC1A   // force output compare flag
+#define OCR     OCR1A   // timer 1 output compare register
+#define TCNT    TCNT1   // timer 1 counter
+#define IDXPORT PINB    // INDEX pin port     (digital pin  8, register PB4)
+#define IDXBIT  4       // INDEX pin bit      (digital pin  8, register PB4)
+#define WGPORT  DDRB    // WRITEGATE pin port (digital pin 10, register PB6)
+#define WGBIT   6       // WRITEGATE pin bit  (digital pin 10, register PB6)
+#define OCDDR   DDRB    // WRITEDATA pin port (digital pin  9, register PB5)
+#define OCBIT   5       // WRITEDATA pin bit  (digital pin  9, register PB5)
+
+
 #elif defined(__AVR_ATmega2560__)
 
-// input/output pin definitions for Arduino Mega (Atmega2560)
+// ------------------------------  Pin assignments for Arduino Mega (Atmega2560)  -----------------------------
 
 #define PIN_STEP      53  // can be changed to different pin
 #define PIN_STEPDIR   52  // can be changed to different pin
@@ -133,7 +195,7 @@ asm ("   .equ TIFR,    0x1A\n"  // timer 5 flag register
 
 #else
 
-#error "ArduinoFDC library requires either an ATMega328P or ATMega2560 processor (Arduino UNO or Arduino MEGA)"
+#error "ArduinoFDC library requires either an ATMega328P, Atmega32U4 or ATMega2560 processor (Arduino UNO, Leonardo or MEGA)"
 
 #endif
 

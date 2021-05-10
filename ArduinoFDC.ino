@@ -31,6 +31,12 @@
 //#define USE_XMODEM
 
 
+#if defined(__AVR_ATmega32U4__) && defined(USE_ARDUDOS) && (defined(USE_MONITOR) || defined(USE_XMODEM))
+#warning "On Arduino Leonardo/Micro program memory is too small to support ArduDOS together with other components!"
+#undef USE_MONITOR
+#undef USE_XMODEM
+#endif
+
 // -------------------------------------------------------------------------------------------------
 // Basic helper functions
 // -------------------------------------------------------------------------------------------------
@@ -483,7 +489,7 @@ void arduDOS()
             }
         }
 #ifdef USE_MONITOR
-      else if( strcmp_PF(cmd, F("monitor"))==0 )
+      else if( strncmp_PF(cmd, F("monitor"), max(3, strlen(cmd)))==0 )
         {
           motor_timeout = 0;
           monitor();
