@@ -2,7 +2,7 @@
 
 ![ArduinoFDC Setup](images/setup.jpg)
 
-ArduinoFDC is a sketch that implements a floppy disk controller. It works on an Arduino UNO, Nano, Pro Mini or MEGA.
+ArduinoFDC is a sketch that implements a floppy disk controller. It works on an Arduino UNO, Leonardo, Nano, Pro Mini, Micro or MEGA.
 
 ArduinoFDC consists of three parts: 
 
@@ -21,31 +21,31 @@ and 3.5" HD (1.44MB) disks.
 
 ## Wiring:
 
-The following table shows how to wire up the Arduino UNO pins to the 34-pin IDC
-connector on the 3.5" floppy drive. 
+The table below shows how to wire up the Arduino pins to the 34-pin IDC
+connector on the floppy drive cable.
 
 The pin numbers are defined at the top of the ArduinoFDC.cpp file. Some of them can 
 easily be changed whereas others are hard-coded in the controller code. Refer to 
 the comments at the top of the ArduinoFDC.cpp file if you want to use different
 pin assignments.
 
-Floppy Cable pin | Arduino UNO pin  | Arduino MEGA pin | Notes  | Function
------------------|------------------|------------------|--------|----------------
-2                | 13               |  42              | 3,4,5  | Density select
-8                | 7                |  47              |        | Index
-10               | 4                |  51              | 1,3    | Motor Enable A
-12               | A1               |  40              | 1,3,4  | Drive Select B
-14               | 5                |  50              | 1,3    | Drive Select A
-16               | A0               |  41              | 1,3,4  | Motor Enable B
-18               | 3                |  52              | 3      | Head Step Direction
-20               | 2                |  53              | 3      | Head Step Pulse
-22               | 9                |  46              |        | Write Data
-24               | 10               |  45              |        | Write Gate (write enable)
-26               | 11               |  44              | 3      | Track 0
-28               | 12               |  43              | 3,4    | Write Protect
-30               | 8                |  48              | 2      | Read Data
-32               | 6                |  49              | 3      | Side Select
-1,3,5,...,31,33  | GND              | GND              |        | GND (just pick one)
+Floppy Cable     | UNO/Mini/Nano | Leonardo/Micro  | Mega   | Notes  | Function
+-----------------|---------------|-----------------|--------|--------|---------------
+2                | 13            | 13/16           | 42     | 3,4,5  | Density select
+8                | 7             | 8               | 47     |        | Index
+10               | 4             | 5               | 51     | 1,3    | Motor Enable A
+12               | A1            | A1              | 40     | 1,3,4  | Drive Select B
+14               | 5             | 6               | 50     | 1,3    | Drive Select A
+16               | A0            | A0              | 41     | 1,3,4  | Motor Enable B
+18               | 3             | 3               | 52     | 3      | Head Step Direction
+20               | 2             | 2               | 53     | 3      | Head Step Pulse
+22               | 9             | 9               | 46     |        | Write Data
+24               | 10            | 10              | 45     |        | Write Gate
+26               | 11            | 11/14           | 44     | 3      | Track 0
+28               | 12            | 12/15           | 43     | 3,4    | Write Protect
+30               | 8             | 4               | 48     | 2      | Read Data
+32               | 6             | 7               | 49     | 3      | Side Select
+1,3,5,...,31,33  | GND           | GND             | GND    | 6      | GND
 
 **Note 1:**
 The pin numbers for the SELECT/MOTOR signals assume you are wiring to
@@ -73,6 +73,12 @@ statement at the top of ArduinoFDC.cpp
 
 **Note 5:**
 See section "DENSITY control signal" below.
+
+**Note 6:**
+You should be able to just pick one of the GND pins. However, some cables/drives
+do not actually connect all of these to ground. If your setup does not work
+it may be worth trying a different GND pin.
+
 
 ## Supported disk/drive types
 
