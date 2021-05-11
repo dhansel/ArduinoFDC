@@ -2,7 +2,7 @@
 
 ![ArduinoFDC Setup](images/setup.jpg)
 
-ArduinoFDC is a sketch that implements a floppy disk controller. It works on an Arduino Uno, Leonardo, Nano, Pro Mini, Micro and Mega.
+ArduinoFDC is a sketch that implements a floppy disk controller. It works with Arduino Uno, Leonardo, Nano, Pro Mini, Micro and Mega.
 
 ArduinoFDC consists of three parts: 
 
@@ -21,7 +21,7 @@ and 3.5" HD (1.44MB) disks.
 
 ## Wiring:
 
-The table below shows how to wire up the Arduino pins to the 34-pin IDC
+The table below shows how to wire the Arduino pins to the 34-pin IDC
 connector on the floppy drive cable.
 
 The pin numbers are defined at the top of the ArduinoFDC.cpp file. Some of them can 
@@ -29,7 +29,7 @@ easily be changed whereas others are hard-coded in the controller code. Refer to
 the comments at the top of the ArduinoFDC.cpp file if you want to use different
 pin assignments.
 
-Floppy Cable     | UNO/Mini/Nano | Leonardo/Micro  | Mega   | Notes  | Function
+Floppy Cable     | Uno/Mini/Nano | Leonardo/Micro  | Mega   | Notes  | Function
 -----------------|---------------|-----------------|--------|--------|---------------
 2                | 13            | 13/16           | 42     | 3,4,5  | Density select
 8                | 7             | 8               | 47     |        | Index
