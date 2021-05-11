@@ -70,7 +70,7 @@ DRESULT disk_read(BYTE pdrv, BYTE *buf, DWORD sec, UINT count)
 }
 
 
-DRESULT disk_write(BYTE pdrv, const BYTE *buf, DWORD sec, UINT count)
+DRESULT disk_write(BYTE pdrv, BYTE *buf, DWORD sec, UINT count)
 {
   DRESULT res = RES_OK;
   byte numsec = ArduinoFDC.numSectors();

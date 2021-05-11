@@ -124,7 +124,7 @@ class ArduinoFDCClass
   bool motorRunning() const;
 
  private:
-  bool driveSelect(bool state);
+  void driveSelect(bool state) const;
   void setDensityPin();
   byte getBitLength();
 

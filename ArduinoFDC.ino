@@ -32,7 +32,7 @@
 
 
 #if defined(__AVR_ATmega32U4__) && defined(USE_ARDUDOS) && (defined(USE_MONITOR) || defined(USE_XMODEM))
-#warning "On Arduino Leonardo/Micro program memory is too small to support ArduDOS together with other components!"
+#warning "Arduino Leonardo/Micro program memory is too small to support ArduDOS together with other components!"
 #undef USE_MONITOR
 #undef USE_XMODEM
 #endif
@@ -275,7 +275,7 @@ void arduDOS()
       Serial.print(F(":>"));
       char *cmd = read_user_cmd(tempbuffer, TEMPBUFFER_SIZE);
 
-      if( strcmp_PF(cmd, F("a:"))==0 || strcmp_PF(cmd, F("b:"))==0 )
+      if( strcmp_PF(cmd, PSTR("a:"))==0 || strcmp_PF(cmd, PSTR("b:"))==0 )
         {
           byte drive = cmd[0]-'a';
           if( drive != ArduinoFDC.selectedDrive() )
@@ -287,7 +287,7 @@ void arduDOS()
 
           f_mount(&FatFs, "0:", 0);
         }
-      else if( strncmp_PF(cmd, F("dir"), 3)==0 )
+      else if( strncmp_P(cmd, PSTR("dir"), 3)==0 )
         {
           DIR dir;
           FILINFO finfo;
@@ -327,7 +327,7 @@ void arduDOS()
                   if( count==0 ) Serial.println(F("No files."));
                   
                   FATFS *fs;
-                  DWORD fre_clust, fre_sect, tot_sect;
+                  DWORD fre_clust;
                   fr = f_getfree("0:", &fre_clust, &fs);
 
                   if( fr==FR_OK )
@@ -340,7 +340,7 @@ void arduDOS()
           else
             print_ff_error(fr);
         }
-      else if( strncmp_PF(cmd, F("type "), 5)==0 )
+      else if( strncmp_P(cmd, PSTR("type "), 5)==0 )
         {
           ArduinoFDC.motorOn();
           fr = f_open(&FatFsFile, cmd+5, FA_READ);
@@ -360,7 +360,7 @@ void arduDOS()
           else
             print_ff_error(fr);
         }
-      else if( strncmp_PF(cmd, F("dump "), 5)==0 )
+      else if( strncmp_P(cmd, PSTR("dump "), 5)==0 )
         {
           ArduinoFDC.motorOn();
           fr = f_open(&FatFsFile, cmd+5, FA_READ);
@@ -381,7 +381,7 @@ void arduDOS()
           else
             print_ff_error(fr);
         }
-      else if( strncmp_PF(cmd, F("write "), 6)==0 )
+      else if( strncmp_P(cmd, PSTR("write "), 6)==0 )
         {
           ArduinoFDC.motorOn();
           fr = f_open(&FatFsFile, cmd+6, FA_WRITE | FA_CREATE_NEW);
@@ -406,35 +406,35 @@ void arduDOS()
           else
             print_ff_error(fr);
         }
-      else if( strncmp_PF(cmd, F("del "), 4)==0 )
+      else if( strncmp_P(cmd, PSTR("del "), 4)==0 )
         {
           ArduinoFDC.motorOn();
           fr = f_unlink(cmd+4);
           if( fr != FR_OK )
             print_ff_error(fr);
         }
-      else if( strncmp_PF(cmd, F("mkdir "), 6)==0 )
+      else if( strncmp_P(cmd, PSTR("mkdir "), 6)==0 )
         {
           ArduinoFDC.motorOn();
           fr = f_mkdir(cmd+6);
           if( fr != FR_OK )
             print_ff_error(fr);
         }
-      else if( strncmp_PF(cmd, F("rmdir "), 6)==0 )
+      else if( strncmp_P(cmd, PSTR("rmdir "), 6)==0 )
         {
           ArduinoFDC.motorOn();
           fr = f_rmdir(cmd+6);
           if( fr != FR_OK )
             print_ff_error(fr);
         }
-      else if( strncmp_PF(cmd, F("disktype "), 9)==0 )
+      else if( strncmp_P(cmd, PSTR("disktype "), 9)==0 )
         {
-          ArduinoFDC.setDriveType(atoi(cmd+9));
+          ArduinoFDC.setDriveType((ArduinoFDCClass::DriveType) atoi(cmd+9));
           Serial.print(F("Setting disk type for drive ")); Serial.write('A'+ArduinoFDC.selectedDrive()); 
           Serial.print(F(" to ")); print_drive_type(ArduinoFDC.getDriveType()); Serial.println();
           f_mount(&FatFs, "0:", 0);
         }
-      else if( strncmp_PF(cmd, F("format"), 6)==0 )
+      else if( strncmp_P(cmd, PSTR("format"), 6)==0 )
         {
           MKFS_PARM param;
           param.fmt = FM_FAT | FM_SFD; // FAT12 type, no disk partitioning
@@ -489,7 +489,7 @@ void arduDOS()
             }
         }
 #ifdef USE_MONITOR
-      else if( strncmp_PF(cmd, F("monitor"), max(3, strlen(cmd)))==0 )
+      else if( strncmp_P(cmd, PSTR("monitor"), max(3, strlen(cmd)))==0 )
         {
           motor_timeout = 0;
           monitor();
@@ -497,7 +497,7 @@ void arduDOS()
         }
 #endif
 #ifdef USE_XMODEM
-      else if( strncmp_PF(cmd, F("receive "), 8)==0 )
+      else if( strncmp_P(cmd, PSTR("receive "), 8)==0 )
         {
           ArduinoFDC.motorOn();
           fr = f_open(&FatFsFile, cmd+8, FA_WRITE | FA_CREATE_NEW);
@@ -526,7 +526,7 @@ void arduDOS()
           else
             print_ff_error(fr);
         }
-      else if( strncmp_PF(cmd, F("send "), 5)==0 )
+      else if( strncmp_P(cmd, PSTR("send "), 5)==0 )
         {
           ArduinoFDC.motorOn();
           fr = f_open(&FatFsFile, cmd+5, FA_READ);
@@ -558,7 +558,7 @@ void arduDOS()
 #endif
 #if !defined(USE_ARDUDOS) || !defined(USE_MONITOR) || !defined(USE_XMODEM) || defined(__AVR_ATmega2560__)
       // must save flash space if all three of ARDUDOS/MONITR/XMODEM are enabled on UNO
-      else if( strcmp_PF(cmd, F("help"))==0 || strcmp_PF(cmd, F("h"))==0 || strcmp_PF(cmd, F("?"))==0 )
+      else if( strcmp_P(cmd, PSTR("help"))==0 || strcmp_P(cmd, PSTR("h"))==0 || strcmp_P(cmd, PSTR("?"))==0 )
         {
           Serial.print(F("Valid commands: dir, type, dump, write, del, mkdir, rmdir, disktype, format"));
 #ifdef USE_MONITOR
@@ -858,7 +858,7 @@ void monitor()
         }
       else if( cmd=='t' && n>1 )
         {
-          ArduinoFDC.setDriveType(a1);
+          ArduinoFDC.setDriveType((ArduinoFDCClass::DriveType) a1);
           Serial.print(F("Setting type of drive ")); Serial.write('A' + ArduinoFDC.selectedDrive()); 
           Serial.print(F(" to: ")); print_drive_type(ArduinoFDC.getDriveType()); Serial.println();
         }

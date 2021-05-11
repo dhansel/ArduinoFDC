@@ -1119,7 +1119,7 @@ static byte wait_header(byte bitlen, byte track, byte side, byte sector)
           // expected track/side/sector information and the CRC is ok
           if( header[0]==0xFE && (track==0xFF || track==header[1]) && side==header[2] && sector==header[3] )
             {
-              if( calc_crc(header, 5) == 256*header[5]+header[6] )
+              if( calc_crc(header, 5) == 256u*header[5]+header[6] )
                 return S_OK;
 #ifdef DEBUG
               else
@@ -1250,8 +1250,10 @@ ArduinoFDCClass::ArduinoFDCClass()
   m_currentDrive  = 0;
   m_motorState[0] = false;
   m_motorState[1] = false; 
-  m_driveType[0]  = 255;
-  m_driveType[1]  = 255;
+  m_driveType[0]  = DT_3_HD;
+  m_driveType[1]  = DT_3_HD;
+  m_bitLength[0]  = 0;
+  m_bitLength[1]  = 0;
 
 #if defined(PIN_DENSITY)
   m_densityPinMode[0] = DP_DISCONNECT;
@@ -1380,7 +1382,7 @@ void ArduinoFDCClass::setDensityPin()
 }
 
 
-bool ArduinoFDCClass::driveSelect(bool state)
+void ArduinoFDCClass::driveSelect(bool state) const
 {
 #if defined(PIN_MOTORB) && defined(PIN_SELECTB)
   digitalWriteOC(m_currentDrive==0 ? PIN_SELECTA : PIN_SELECTB, state);
@@ -1494,7 +1496,7 @@ byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
 #endif
                   res = S_INVALIDID;
                 }
-              else if( calc_crc(buffer, 513) != 256*buffer[513]+buffer[514] )
+              else if( calc_crc(buffer, 513) != 256u*buffer[513]+buffer[514] )
                 { 
 #ifdef DEBUG
                   Serial.print(F("Data CRC error. Found: ")); Serial.print(256*buffer[513]+buffer[514], HEX); Serial.print(", expected: "); Serial.println(calc_crc(buffer, 513), HEX);
