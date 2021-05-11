@@ -2,7 +2,7 @@
 
 ![ArduinoFDC Setup](images/setup.jpg)
 
-ArduinoFDC is a sketch that implements a floppy disk controller. It works on an Arduino UNO, Leonardo, Nano, Pro Mini, Micro or MEGA.
+ArduinoFDC is a sketch that implements a floppy disk controller. It works on an Arduino Uno, Leonardo, Nano, Pro Mini, Micro and Mega.
 
 ArduinoFDC consists of three parts: 
 
@@ -45,7 +45,7 @@ Floppy Cable     | UNO/Mini/Nano | Leonardo/Micro  | Mega   | Notes  | Function
 28               | 12            | 12/15           | 43     | 3,4    | Write Protect
 30               | 8             | 4               | 48     | 2      | Read Data
 32               | 6             | 7               | 49     | 3      | Side Select
-1,3,5,...,31,33  | GND           | GND             | GND    | 6      | GND
+1,3,5,...,31,33  | GND           | GND             | GND    | 6      | Signal Ground
 
 **Note 1:**
 The pin numbers for the SELECT/MOTOR signals assume you are wiring to
