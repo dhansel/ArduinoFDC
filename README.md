@@ -16,7 +16,7 @@ a FAT file system as well as a [low-level disk monitor](#low-level-disk-monitor)
 including the ability to transfer whole disks or single files via the XModem protocol.
 
 ArduinoFDC works with double density (DD) as well as high density (HD)
-disk drives. It can read/write 5.25" DD (360KB), 5.25" HD (1.2MB), 3.5" DD (720KB)
+disk drives. It can read, write and format 5.25" DD (360KB), 5.25" HD (1.2MB), 3.5" DD (720KB)
 and 3.5" HD (1.44MB) disks.
 
 ## Wiring:
