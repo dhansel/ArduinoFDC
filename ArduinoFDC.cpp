@@ -1129,10 +1129,10 @@ static byte wait_header(byte bitlen, byte track, byte side, byte sector)
 #ifdef DEBUG
           else
             {
-              static const char hex[16] = "0123456789ABCDEF";
+              static const char hex[17] = "0123456789ABCDEF";
               Serial.write('H');
               for(byte i=0; i<5; i++) { Serial.write(hex[header[i]/16]); Serial.write(hex[header[i]&15]); }
-              Serial.write(calc_crc(header, 5) == 256*header[5]+header[6] ? '+' : '-');
+              Serial.write(calc_crc(header, 5) == 256u*header[5]+header[6] ? '+' : '-');
               Serial.write(10);
             }
 #endif
@@ -1154,10 +1154,10 @@ static byte wait_header(byte bitlen, byte track, byte side, byte sector)
 static void step_track()
 {
   // produce LOW->HIGH pulse on STEP pin
-  delay(10);
   digitalWriteOC(PIN_STEP, LOW);
   delay(1);
   digitalWriteOC(PIN_STEP, HIGH);
+  delay(10);
 }
 
 
@@ -1499,7 +1499,7 @@ byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
               else if( calc_crc(buffer, 513) != 256u*buffer[513]+buffer[514] )
                 { 
 #ifdef DEBUG
-                  Serial.print(F("Data CRC error. Found: ")); Serial.print(256*buffer[513]+buffer[514], HEX); Serial.print(", expected: "); Serial.println(calc_crc(buffer, 513), HEX);
+                  Serial.print(F("Data CRC error. Found: ")); Serial.print(256u*buffer[513]+buffer[514], HEX); Serial.print(", expected: "); Serial.println(calc_crc(buffer, 513), HEX);
 #endif
                   res = S_CRC; 
                 }
@@ -1647,13 +1647,14 @@ byte ArduinoFDCClass::formatDisk(byte *buffer, byte fromTrack, byte toTrack)
   else
     {
       if( fromTrack>0 ) step_tracks(driveType, fromTrack);
-      for(byte track=fromTrack; track<=toTrack && track<numTracks; track++)
+      if( toTrack>=numTracks ) toTrack = numTracks-1;
+      for(byte track=fromTrack; track<=toTrack; track++)
         {
           digitalWriteOC(PIN_SIDE, HIGH);
           res = format_track(buffer, driveType, bitLength, track, 0); if( res!=S_OK ) break;
           digitalWriteOC(PIN_SIDE, LOW);
           res = format_track(buffer, driveType, bitLength, track, 1); if( res!=S_OK ) break;
-          if( track<numTracks-1 ) step_tracks(driveType, 1);
+          if( track+1<=toTrack ) step_tracks(driveType, 1);
         }
     }
 

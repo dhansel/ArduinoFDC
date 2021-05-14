@@ -161,6 +161,15 @@ void print_error(byte n)
 }
 
 
+void set_drive_type(int n)
+{
+  ArduinoFDC.setDriveType((ArduinoFDCClass::DriveType) n);
+  Serial.print(F("Setting disk type for drive ")); Serial.write('A'+ArduinoFDC.selectedDrive());
+  Serial.print(F(" to ")); print_drive_type(ArduinoFDC.getDriveType());
+  Serial.println();
+}
+
+
 // -------------------------------------------------------------------------------------------------
 // XModem data transfer functions
 // -------------------------------------------------------------------------------------------------
@@ -197,7 +206,7 @@ static FIL   FatFsFile;
 #ifdef USE_XMODEM
 
 #include "XModem.h"
-FRESULT xmodem_status = S_OK;
+FRESULT xmodem_status = FR_OK;
 
 bool xmodemHandlerSend(unsigned long no, char* data, int size)
 {
@@ -209,7 +218,7 @@ bool xmodemHandlerSend(unsigned long no, char* data, int size)
   
   // XMODEM sends blocks of 128 bytes so if we have less than that
   // fill the rest of the buffer with EOF (ASCII 26) characters
-  while( br<size ) data[br++]=26;
+  while( (int) br<size ) data[br++]=26;
 
   return true;
 }
@@ -429,9 +438,7 @@ void arduDOS()
         }
       else if( strncmp_P(cmd, PSTR("disktype "), 9)==0 )
         {
-          ArduinoFDC.setDriveType((ArduinoFDCClass::DriveType) atoi(cmd+9));
-          Serial.print(F("Setting disk type for drive ")); Serial.write('A'+ArduinoFDC.selectedDrive()); 
-          Serial.print(F(" to ")); print_drive_type(ArduinoFDC.getDriveType()); Serial.println();
+          set_drive_type(atoi(cmd+9));
           f_mount(&FatFs, "0:", 0);
         }
       else if( strncmp_P(cmd, PSTR("format"), 6)==0 )
@@ -506,7 +513,7 @@ void arduDOS()
               Serial.println(F("Send file via XModem now..."));
               
               XModem modem(recvChar, sendData, xmodemHandlerReceive);
-              xmodem_status = S_OK;
+              xmodem_status = FR_OK;
               modem.receive();
 
               if( xmodem_status == FR_OK )
@@ -535,7 +542,7 @@ void arduDOS()
               Serial.println(F("Receive file via XModem now..."));
               
               XModem modem(recvChar, sendData, xmodemHandlerSend);
-              xmodem_status = S_OK;
+              xmodem_status = FR_OK;
               modem.transmit();
               
               if( xmodem_status == FR_OK )
@@ -858,9 +865,7 @@ void monitor()
         }
       else if( cmd=='t' && n>1 )
         {
-          ArduinoFDC.setDriveType((ArduinoFDCClass::DriveType) a1);
-          Serial.print(F("Setting type of drive ")); Serial.write('A' + ArduinoFDC.selectedDrive()); 
-          Serial.print(F(" to: ")); print_drive_type(ArduinoFDC.getDriveType()); Serial.println();
+          set_drive_type(a1);
         }
       else if( cmd=='f' )
         {
