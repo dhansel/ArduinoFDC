@@ -19,7 +19,7 @@ ArduinoFDC works with double density (DD) as well as high density (HD)
 disk drives. It can read, write and format 5.25" DD (360KB), 5.25" HD (1.2MB), 3.5" DD (720KB)
 and 3.5" HD (1.44MB) disks.
 
-## Wiring:
+## Wiring
 
 The table below shows how to wire the Arduino pins to the 34-pin IDC
 connector on the floppy drive cable.
@@ -79,6 +79,22 @@ You should be able to just pick one of the GND pins. However, some cables/drives
 do not actually connect all of these to ground. If your setup does not work
 it may be worth trying a different GND pin.
 
+## Powering the drive
+
+In addition to the signal wiring, the floppy drive needs to be powered. 
+5.25" drives typically use a [Molex connector](https://en.wikipedia.org/wiki/Molex_connector#Disk_drive)
+while 3.5" drives usually use a [Berg connector](https://en.wikipedia.org/wiki/Berg_connector).
+
+In my setup I used the power supply of an external hard drive adapter ([something like this](https://www.amazon.com/SATA-Adapter-Converter-Cable-Drive/dp/B01HO07GNW)),
+which has a Molex connector, with an adapter to the 3.5" drive Berg connector.
+
+Since most (all?) 3.5" drives do not use the 12V power line, it is possible to power such drives directly from the Arduio.
+Connect the 5V and GND pins from the Arduino to the 5V and GND pins on the [floppy power connector](https://en.wikipedia.org/wiki/Berg_connector). 
+I have done that before but did run into issues when using cheap cables to connect the Arduino to the PC. 
+What happened was that the USB cable was unable to support the power needed for the Arduino and floppy drive.
+This resulted in a voltage drop over the USB cable that caused the drive to not work properly.
+
+I would generally recommend using a separate power supply for the drive.
 
 ## Supported disk/drive types
 
