@@ -1,0 +1,50 @@
+## New Features
+
+I added a few new features to David's excellent code, demonstratimg the power of those AVR Arduinos.
+
+As other devices with more memory, the Nano can still do this and, morover, is fully 5V compliant! 
+
+
+1.  Support for AppleII floppies
+
+    Reading GCR formatted floppies is now supported, formattimg and writing is to be done.
+    Images read use phisical sector order. Interleaving is required for use of images  in Mame etc.
+
+    Select disk type 6 in  monitor ('t 6').
+
+2.  Support for DD/SS floppies, e.g. DEC RX50
+
+    Select with 't 5' 
+
+3.  Monitor command to temporarily modify disk geometry
+
+    'g t,s[,ts]'  max tracks, sectors, track spacing (1/2)
+
+4.  Monitor command to read low level nibble/flux  data
+
+    'n t,d,m'  track, delay from index hole/ms, mode
+
+    mode: 
+    1  Read nibble data with no wait
+    2  Read flux data (cycles between pulses)
+    3  Read nibbles after delay and waiting for GCR sector header
+    4  Read nibbles after delay and waiting for GCR data header
+
+5.  Caching for disk reads, nibble data
+
+    Buffer size increase to 6656 bytes (1 nibble track) on Atmega MEGA
+
+
+Code is "work in progess" and was tested on MEGA. Should work on Nano as well.
+
+New features may be disabled by uncommenting defines for NIBBLES and GCR. 
+
+Open issues: 
+GCR Reading hangs on none GCR disks, or if head is stuck on track >35.
+"motor on" from monitor does not work.
+XModem works fine with TeraTerm, but fails with minicom.
+
+Please feel free to contact me for questions/suggestions.
+
+Detlef Clawin
+dclawin@dctronic.de

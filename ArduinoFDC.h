@@ -34,6 +34,18 @@
 #define S_VERIFY     8  // Verify after write failed
 #define S_READONLY   9  // Attempt to write to a write-protected disk
 
+#define MFM 0   // MFM Modulation
+#define WOZ 1   // Apple][ GCR ....  disable WOZ if not defineds
+
+#define NIBBLES  // include sipport for nibbles read
+
+#if defined(__AVR_ATmega2560__)
+//#define BUFF_SIZE 7168
+#define BUFF_SIZE 0x1a00
+#else
+#define BUFF_SIZE 515
+#endif
+
 class ArduinoFDCClass
 {
  public:
@@ -43,7 +55,11 @@ class ArduinoFDCClass
     DT_5_DDonHD, // 5.25" double density disk in high density drive (360 KB)
     DT_5_HD,     // 5.25" high density (1.2 MB)
     DT_3_DD,     // 3.5"  double density (720 KB)
-    DT_3_HD      // 3.5"  high density (1.44 MB)
+    DT_3_HD,      // 3.5"  high density (1.44 MB)
+    DT_5_RX50,    // 5.25" RX50
+#ifdef WOZ
+    DT_5_WOZ      // 5.25" Apple][
+#endif
   };
 
   enum DensityPinMode {
@@ -81,8 +97,17 @@ class ArduinoFDCClass
   // get number of tracks for the currently selected drive
   byte numTracks() const;
 
+  // get number of heads for the currently selected drive
+  byte numHeads() const;
+
   // get number of sectors for the currently selected drive
   byte numSectors() const;
+
+  // get modulation
+  byte moduLation() const;
+
+  // added: option to modifay drive geometry
+  void patchGeometry(int tracks,int sectors,int trackSpacing);
 
   // set the density pin mode for the currently selected drive
   void setDensityPinMode(enum DensityPinMode mode);
@@ -93,7 +118,10 @@ class ArduinoFDCClass
   //            read will be in buffer[1..512] (NOT: 0..511!)
   // See error codes above for possible return values
   byte readSector(byte track, byte side, byte sector, byte *buffer);
-
+  
+#ifdef NIBBLES
+  byte readNibbles(byte track, byte side, byte mode, int delay, byte*buffer);
+#endif
   // Write a sector to disk,
   // buffer MUST have a size of at least 516 bytes.
   // IMPORTANT: The 512 bytes of sector data to be written

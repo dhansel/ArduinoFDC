@@ -1,4 +1,4 @@
-// -----------------------------------------------------------------------------
+
 // 3.5"/5.25" DD/HD Disk controller for Arduino
 // Copyright (C) 2021 David Hansel
 //
@@ -203,23 +203,31 @@ asm ("   .equ TIFR,    0x1A\n"  // timer 5 flag register
 #error "ArduinoFDC library requires 16MHz clock speed"
 #endif
 
+#define MODE_GCR_DATA 4
+#define MODE_GCR_HEADER 3
 
 struct DriveGeometryStruct
 {
   byte numTracks;
   byte numSectors;
+  byte numHeads; // number of heads, 1 = Single Side (SS)
   byte dataGap;
   byte trackSpacing;
+  byte moduLation ;  // 0 = MFM, 1 = GCR
 };
 
 
-static struct DriveGeometryStruct geometry[5] =
+static struct DriveGeometryStruct geometry[] =
   {
-    {40,  9,  80, 1},  // 5.25" DD (360 KB)
-    {40,  9,  80, 2},  // 5.25" DD disk in HD drive (360 KB)
-    {80, 15,  85, 1},  // 5.25" HD (1.2 MB)
-    {80,  9,  80, 1},  // 3.5"  DD (720 KB)
-    {80, 18, 100, 1}   // 3.5"  HD (1.44 MB)
+    {40,  9,  2, 80, 1, MFM },  // 5.25" DD (360 KB)
+    {40,  9,  2, 80, 2, MFM },  // 5.25" DD disk in HD drive (360 KB)
+    {80, 15,  2, 85, 1, MFM },  // 5.25" HD (1.2 MB)
+    {80,  9,  2, 80, 1, MFM },  // 3.5"  DD (720 KB)
+    {80, 18,  2,100, 1, MFM },  // 3.5"  HD (1.44 MB)
+    {80, 10,  1, 80, 1, MFM },   // 5.25" DEC RX50  , template for other SS Disks formats ?
+#ifdef WOZ
+    {35, 16,  1, 80, 2, WOZ }   // Apple][ DOS3 / CPM
+#endif
   };
 
 
@@ -227,7 +235,7 @@ static struct DriveGeometryStruct geometry[5] =
 //#define DEBUG
 
 ArduinoFDCClass ArduinoFDC;
-static byte header[7];
+static byte header[8]; // was 8
 
 
 // digitalWrite function for simulating open-collector outputs.
@@ -351,7 +359,6 @@ static bool wait_index_hole()
 
   return true;
 }
-
 
 
 static byte read_data(byte bitlen, byte *buffer, unsigned int n, byte verify)
@@ -688,7 +695,9 @@ static void write_data(byte bitlen, byte *buffer, unsigned int n)
   TCCRB &= ~bit(WGM2);
 }
 
-
+#if defined(WOZ) || defined(NIBBLES)
+#include "read_data_gcr.h"
+#endif
 
 static byte format_track(byte *buffer, byte driveType, byte bitlen, byte track, byte side)
 {
@@ -1095,10 +1104,15 @@ static byte format_track(byte *buffer, byte driveType, byte bitlen, byte track, 
 }
 
 
-static byte wait_header(byte bitlen, byte track, byte side, byte sector)
+static byte wait_header(byte bitlen, byte moduLation, byte track, byte side, byte sector)
 {
   byte attempts = 50;
-
+  byte status ;
+#ifdef myDEBUG
+  Serial.print("wait_header: m=");
+  Serial.println(moduLation);
+  Serial.flush();
+#endif  
   // check whether we can see any data pulses from the drive at all
   if( !check_pulse() )
     {
@@ -1111,7 +1125,14 @@ static byte wait_header(byte bitlen, byte track, byte side, byte sector)
   do
     {
       // wait for sync sequence and read 7 bytes of data
-      byte status = read_data(bitlen, header, 7, false);
+      if (moduLation == MFM ) {
+      
+      byte status = read_data(bitlen, header, 7, false); 
+#ifdef myDEBUG
+      Serial.print("wait_header: mfm st=");
+      Serial.println(status);
+      Serial.flush();
+#endif  
 
       if( status==S_OK )
         {
@@ -1136,10 +1157,49 @@ static byte wait_header(byte bitlen, byte track, byte side, byte sector)
               Serial.write(10);
             }
 #endif
-        }
+        } 
       else
         return status;
     }
+#ifdef WOZ
+    else { 
+    	  byte status = read_data_gcr(bitlen, header, 8, false, MODE_GCR_HEADER ) ; // header size is 8
+#ifdef myDEBUG
+        Serial.print("wait_header: gcr st=");
+        Serial.println(status);
+        Serial.flush();
+#endif		
+        if ( status == S_OK ) {  // for now status is always S_OK (0)
+	   if ( ( header[0] ^ header[2] ^ header[4] ^ header[6] ) != 0 
+				|| ( header[1] ^ header[3] ^ header[5] ^ header[7] ) != 0 ) {
+                 Serial.println(F("Header CRC error!")); Serial.flush(); 
+           } ;
+// do 4x2 decode 
+	   header[1] =  ( ( header[2] << 1) | 1 ) & header [3] ; // track expected in header[1] later
+           header[0] =  ( ( ( header[4] << 1) | 1 ) & header [5] ) + 1 ; // adapt sector number to MFM (+1) 
+#ifdef myDEBUG
+           Serial.print("wait_header: gcr t,s'=");
+           Serial.println(header[1]);
+           Serial.println(header[0]);
+           Serial.flush();
+#endif		
+           if(  (track==0xFF || track==header[1]) && sector==header[0] ) {
+             return S_OK ; // track 0xFF: Don't care
+           } 
+#ifdef DEBUG
+           else
+            {
+              static const char hex[17] = "0123456789ABCDEF";
+              Serial.write('h');
+              for(byte i=0; i<2; i++) { Serial.write(hex[header[i]/16]); Serial.write(hex[header[i]&15]); }
+              Serial.write(10);
+            }
+#endif
+	  } else
+	    return status; 
+        }
+#endif
+    }  // try next sector
   while( --attempts>0 );
   
 #ifdef DEBUG
@@ -1194,13 +1254,13 @@ static void step_tracks(byte driveType, int tracks)
 }
 
 
-static byte find_sector(byte driveType, byte bitLength, byte track, byte side, byte sector)
+static byte find_sector(byte driveType, byte bitLength, byte moduLation, byte track, byte side, byte sector)
 {
   // select side
   digitalWriteOC(PIN_SIDE, side>0 ? LOW : HIGH);
 
   // wait for sector header
-  byte res = wait_header(bitLength, -1, side, sector);
+  byte res = wait_header(bitLength, moduLation, -1, side, sector);
 
   // if we found the sector header but it's not on the correct track then step to correct track and check again
   if( res==S_OK && header[1]!=track )
@@ -1213,7 +1273,7 @@ static byte find_sector(byte driveType, byte bitLength, byte track, byte side, b
           step_tracks(driveType, track-header[1]);
           noInterrupts();
 
-          res = wait_header(bitLength, track, side, sector);
+          res = wait_header(bitLength, moduLation, track, side, sector);
         }
       else
         res = S_NOHEADER;
@@ -1228,7 +1288,7 @@ static byte find_sector(byte driveType, byte bitLength, byte track, byte side, b
         {
           step_tracks(driveType, track);
           noInterrupts();
-          res = wait_header(bitLength, track, side, sector);
+          res = wait_header(bitLength, moduLation, track, side, sector);
         }
       else
         {
@@ -1250,7 +1310,12 @@ ArduinoFDCClass::ArduinoFDCClass()
   m_currentDrive  = 0;
   m_motorState[0] = false;
   m_motorState[1] = false; 
+//m_driveType[0]  = DT_3_HD;
+#ifdef WOZ
+  m_driveType[0]  = DT_5_WOZ;
+#else
   m_driveType[0]  = DT_3_HD;
+#endif
   m_driveType[1]  = DT_3_HD;
   m_bitLength[0]  = 0;
   m_bitLength[1]  = 0;
@@ -1335,7 +1400,11 @@ void ArduinoFDCClass::setDriveType(enum DriveType type)
       // by default: 3.5"     drives do not use DENSITY pin (disconnect)
       //             5.25  DD drives do not use DENSITY pin (disconnect)
       //             5.25" HD drives expect DENSITY to be LOW for low density
-      if( type==DT_5_DDonHD || type==DT_5_HD )
+#ifdef WOZ
+      if( type==DT_5_DDonHD || type==DT_5_HD || type==DT_5_RX50 || type==DT_5_WOZ )
+#else
+      if( type==DT_5_DDonHD || type==DT_5_HD || type==DT_5_RX50 )
+#endif
         setDensityPinMode(DP_OUTPUT_LOW_FOR_DD);
       else
         setDensityPinMode(DP_DISCONNECT);
@@ -1359,6 +1428,7 @@ void ArduinoFDCClass::setDensityPinMode(enum DensityPinMode mode)
   setDensityPin();
 #endif
 }
+
 
 
 void ArduinoFDCClass::setDensityPin()
@@ -1404,7 +1474,12 @@ byte ArduinoFDCClass::getBitLength()
         case DT_3_DD: bitLength = 32; break;
         case DT_5_HD: bitLength = 16; break;
         case DT_5_DD: bitLength = 32; break;
-
+        
+#ifdef WOZ
+	case DT_5_WOZ: 
+#endif
+	case DT_5_RX50: 
+              // bitLength = 27; break; // ??
         case DT_5_DDonHD:
           {
             TCCRA = 0;
@@ -1445,6 +1520,7 @@ byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
 {
   byte res = S_OK;
   byte driveType = m_driveType[m_currentDrive];
+  byte moduLation = geometry[driveType].moduLation;
 
   // do some sanity checks
   if( !m_initialized )
@@ -1479,14 +1555,14 @@ byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
       noInterrupts();
 
       // find the requested sector
-      res = find_sector(driveType, bitLength, track, side, sector);
+      res = find_sector(driveType, bitLength, moduLation, track, side, sector);
       
       // if we found the sector then read the data
       if( res==S_OK )
         {
           // wait for data sync mark and read data
-          if( read_data(bitLength, buffer, 515, false)==S_OK )
-            {
+             if ( moduLation == MFM ) {
+   	      if (read_data(bitLength, buffer, 515, false)==S_OK ) {
               if( buffer[0]!=0xFB )
                 { 
 #ifdef DEBUG
@@ -1503,8 +1579,78 @@ byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
 #endif
                   res = S_CRC; 
                 }
-            }
-        }
+              }
+	    }
+#ifdef WOZ
+ 	    else  {
+	    
+#ifdef DEBUG
+// turn off LED to signal ongoing read
+// pinMode(LED_BUILTIN, OUTPUT);
+digitalWrite(LED_BUILTIN,LOW);
+#endif
+              res = read_data_gcr(bitLength, buffer, 346, false, MODE_GCR_DATA) ; // mode 4 = read data
+	      
+#ifdef DEBUG
+digitalWrite(LED_BUILTIN,HIGH);
+#endif
+              // decode GCR data, bit shuffling etc
+              static const byte decode_6x2[128] = {
+                 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, // <= 0x80
+                 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x01, // <= 0x90
+                 0xff, 0xff, 0x02, 0x03, 0xff, 0x04, 0x05, 0x06,
+                 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x07, 0x08, // <= 0xa0
+                 0xff, 0xff, 0xff, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+                 0xff, 0xff, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, // <= 0xb0
+                 0xff, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a,
+                 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, // <= 0xc0
+                 0xff, 0xff, 0xff, 0x1b, 0xff, 0x1c, 0x1d, 0x1e,
+                 0xff, 0xff, 0xff, 0x1f, 0xff, 0xff, 0x20, 0x21, // <= 0xd0
+                 0xff, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28,
+                 0xff, 0xff, 0xff, 0xff, 0xff, 0x29, 0x2a, 0x2b, // <= 0xe0
+                 0xff, 0x2c, 0x2d, 0x2e, 0x2f, 0x30, 0x31, 0x32,
+                 0xff, 0xff, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, // <= 0xf0
+                 0xff, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f 
+      	      } ;
+      
+              const byte revbits[] = {0, 2, 1, 3}; // reverse 2 LSBs
+      
+              short i,j ;
+      
+              for(i = 0; i < 343; ++i) {
+                  buffer[i] = decode_6x2[buffer[i] & 0x7f];
+                  if ( i > 0 )    buffer[i] ^= buffer[i-1];
+              }
+              
+	      if ( buffer[342] != 0 )  { 
+                  Serial.print("warning: bad XOR cheksum: "); 
+                  Serial.println(buffer[342],HEX); 
+                  res = S_CRC; 
+              };
+              // do bit shuffling, distribute bits from 0..84 to buffer in 86++
+              for( i = 0; i < 84; ++i) {
+      	          buffer[86+i+0*86 ] = ( buffer[86+i+0*86 ] << 2 ) | revbits[ (buffer[i ] >> 0) & 0x3 ] ;
+                  buffer[86+i+1*86 ] = ( buffer[86+i+1*86 ] << 2 ) | revbits[ (buffer[i ] >> 2) & 0x3 ] ;
+                  buffer[86+i+2*86 ] = ( buffer[86+i+2*86 ] << 2 ) | revbits[ (buffer[i ] >> 4) & 0x3 ] ;
+              }
+              // 2 remaining bytes
+              buffer[ 86 + 84      ] = ( buffer[ 86 + 84      ] << 2 ) | revbits[ (buffer[84] >> 0) & 0x3 ];
+              buffer[ 86 + 84 + 86 ] = ( buffer[ 86 + 84 + 86 ] << 2 ) | revbits[ (buffer[84] >> 2) & 0x3 ];
+              buffer[ 86 + 85      ] = ( buffer[ 86 + 85      ] << 2 ) | revbits[ (buffer[85] >> 0) & 0x3 ];
+              buffer[ 86 + 85 + 86 ] = ( buffer[ 86 + 85 + 86 ] << 2 ) | revbits[ (buffer[85] >> 2) & 0x3 ];
+
+/*	dest[84] =
+                (bit_reverse[src[84]&3] << 0) |
+                (bit_reverse[src[170]&3] << 2);
+        dest[85] =
+                (bit_reverse[src[85]&3] << 0) |
+                (bit_reverse[src[171]&3] << 2);  */ 
+
+              //memmove(&buffer[1],&buffer[86],256); // compatible with MFM, 1 byte header, obsolete, now in dump_buffer
+ 	    } 
+#endif
+      }
 
       // interrupts are ok again
       interrupts();
@@ -1514,10 +1660,13 @@ byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
     }
 
   // de-assert DRIVE_SELECT
-  driveSelect(HIGH);
+  // driveSelect(HIGH);
 
   // if we turned the motor on then turn it off again
-  if( turnMotorOff ) motorOff();
+  if( turnMotorOff ) {
+	 driveSelect(HIGH);
+	 motorOff();
+  }
 
   return res;
 }
@@ -1527,7 +1676,12 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
 {
   byte res = S_OK;
   byte driveType = m_driveType[m_currentDrive];
-
+  byte moduLation = m_driveType[moduLation];
+  //
+  if ( moduLation != MFM ) {
+    Serial.println(F("GCR not (yet) supported ! /n"));
+    return S_NOHEADER;
+    }
   // do some sanity checks
   if( !m_initialized )
     return S_NOTINIT;
@@ -1571,7 +1725,7 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
       noInterrupts();
 
       // find the requested sector
-      res = find_sector(driveType, bitLength, track, side, sector);
+      res = find_sector(driveType, bitLength, moduLation, track, side, sector);
 
       // if we found the sector then write the data
       if( res==S_OK )
@@ -1583,7 +1737,7 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
           if( verify )
             {
               // wait for sector to come around again
-              res = wait_header(bitLength, track, side, sector);
+              res = wait_header(bitLength, moduLation, track, side, sector);
               
               // wait for data sync mark and compare the data
               if( res==S_OK ) res = read_data(bitLength, buffer, 515, true);
@@ -1613,6 +1767,10 @@ byte ArduinoFDCClass::formatDisk(byte *buffer, byte fromTrack, byte toTrack)
   byte driveType = m_driveType[m_currentDrive];
   byte numTracks = geometry[driveType].numTracks;
 
+  if ( geometry[driveType].moduLation  != MFM ) {
+    Serial.println(F("Formatting GCR not (yet) supported ! /n"));
+    return S_NOHEADER;
+    }
   // do some sanity checks
   if( !m_initialized )
     return S_NOTINIT;
@@ -1652,9 +1810,12 @@ byte ArduinoFDCClass::formatDisk(byte *buffer, byte fromTrack, byte toTrack)
         {
           digitalWriteOC(PIN_SIDE, HIGH);
           res = format_track(buffer, driveType, bitLength, track, 0); if( res!=S_OK ) break;
-          digitalWriteOC(PIN_SIDE, LOW);
-          res = format_track(buffer, driveType, bitLength, track, 1); if( res!=S_OK ) break;
-          if( track+1<=toTrack ) step_tracks(driveType, 1);
+          // suppress formatting back side
+	  if ( geometry[driveType].numHeads > 1 ) {
+	     digitalWriteOC(PIN_SIDE, LOW);
+             res = format_track(buffer, driveType, bitLength, track, 1); if( res!=S_OK ) break;
+	  }
+	  if( track+1<=toTrack ) step_tracks(driveType, 1);
         }
     }
 
@@ -1691,6 +1852,8 @@ void ArduinoFDCClass::motorOn()
 
 void ArduinoFDCClass::motorOff()
 {
+  driveSelect(HIGH); // for drive delect
+
 #if defined(PIN_MOTORB) && defined(PIN_SELECTB)
   digitalWriteOC(m_currentDrive==0 ? PIN_MOTORA : PIN_MOTORB, HIGH);
 #else
@@ -1698,6 +1861,7 @@ void ArduinoFDCClass::motorOff()
 #endif
 
   m_motorState[m_currentDrive] = false;
+  
 }
 
 
@@ -1786,8 +1950,30 @@ byte ArduinoFDCClass::numTracks() const
   return geometry[m_driveType[m_currentDrive]].numTracks;
 }
 
+byte ArduinoFDCClass::numHeads() const
+{
+  return geometry[m_driveType[m_currentDrive]].numHeads;
+}
+
+byte ArduinoFDCClass::moduLation() const
+{
+  return geometry[m_driveType[m_currentDrive]].moduLation;
+}
+
 
 byte ArduinoFDCClass::numSectors() const
 {
   return geometry[m_driveType[m_currentDrive]].numSectors;
 }
+
+void ArduinoFDCClass::patchGeometry(int tracks,int sectors,int trackSpacing)
+{
+  geometry[m_driveType[m_currentDrive]].numSectors=(byte) sectors;
+  geometry[m_driveType[m_currentDrive]].numTracks=(byte) tracks;
+  if (trackSpacing != 0 ) geometry[m_driveType[m_currentDrive]].trackSpacing=(byte) trackSpacing;
+  return ;
+}
+
+#ifdef NIBBLES
+#include "readNibbles.h"
+#endif

@@ -22,13 +22,13 @@
 
 
 // comment this out to remove high-level ArduDOS functions
-#define USE_ARDUDOS
+//#define USE_ARDUDOS
 
 // commenting this out will remove the low-level disk monitor
 #define USE_MONITOR
 
 // comenting this out will remove support for XModem data transfers
-//#define USE_XMODEM
+#define USE_XMODEM
 
 
 #if defined(__AVR_ATmega32U4__) && defined(USE_ARDUDOS) && (defined(USE_MONITOR) || defined(USE_XMODEM))
@@ -135,6 +135,10 @@ void print_drive_type(byte n)
     case ArduinoFDCClass::DT_5_HD: Serial.print(F("5.25\" HD")); break;
     case ArduinoFDCClass::DT_3_DD: Serial.print(F("3.5\" DD")); break;
     case ArduinoFDCClass::DT_3_HD: Serial.print(F("3.5\" HD")); break;
+    case ArduinoFDCClass::DT_5_RX50: Serial.print(F("5.25\" RX50 DD")); break;
+#ifdef WOZ
+    case ArduinoFDCClass::DT_5_WOZ: Serial.print(F("5.25\" Apple][")); break;
+#endif
     default: Serial.print(F("Unknown"));
     }
 }
@@ -446,7 +450,7 @@ void arduDOS()
           MKFS_PARM param;
           param.fmt = FM_FAT | FM_SFD; // FAT12 type, no disk partitioning
           param.n_fat = 2;             // number of FATs
-          param.n_heads = 2;           // number of heads
+          param.n_heads = 2;           // number of heads  n_heads=2 OK for MSDOS format
           param.n_sec_track = ArduinoFDC.numSectors(); 
           param.align = 1;             // block alignment (not used for FAT12)
           
@@ -598,11 +602,13 @@ void arduDOS()
 #ifdef USE_MONITOR
 
 // re-use the FatFs data buffer if ARDUDOS is enabled (to save RAM)
-#ifdef USE_ARDUDOS
-#define databuffer FatFs.win
-#else
-static byte databuffer[516];
-#endif
+//#ifdef USE_ARDUDOS
+//#define databuffer FatFs.win
+//#else
+//static byte databuffer[516];  // for mega
+//#endif
+
+static byte databuffer[BUFF_SIZE+384];  // for mega
 
 
 #ifdef USE_XMODEM
@@ -616,28 +622,99 @@ word xmodem_sector = 0, xmodem_data_ptr = 0xFFFF;
 
 bool xmodemHandlerSendMon(unsigned long no, char* data, int size)
 {
-  if( xmodem_data_ptr>=512 )
-    {
       byte numsec = ArduinoFDC.numSectors();
-      if( xmodem_sector >= 2*numsec*ArduinoFDC.numTracks() )
+      byte numheads = ArduinoFDC.numHeads();
+      byte buffer_pages;
+      unsigned short offset; // header bytes to take out every 515 bytes
+      unsigned short page_size = 512; // make this static
+      byte page_shift = 9; // 2 ^9 = 512
+      byte p_offset = 1; 
+      byte l_offset = 3; // 515 = 512 + 3
+      if ( ArduinoFDC.moduLation() == MFM ) {
+      buffer_pages = numsec > 10 ? 1 : numsec;  // better 9 if numsec=18 // BUFSIZE verwenden !!
+      } 
+#ifdef WOZ
+      else {   // GCR
+      buffer_pages = numsec > 16 ? 1 : numsec;  // apple sectors  fit in 5.6 k
+        page_size = 256;
+        page_shift = 8; // 2 ^8 = 256
+        p_offset = 86; 
+        l_offset = 90; // 346 = 256 + 90
+      }
+#endif
+//xmodem_data_prt is type word (16bit)
+      //  2**9 = 512
+     if( xmodem_data_ptr>=buffer_pages<<page_shift )    //  xmodem requires more data
+    {
+      //byte numheads = ArduinoFDC.numHeads();
+      //byte numsec = ArduinoFDC.numSectors();
+
+      if( xmodem_sector >= numheads*numsec*ArduinoFDC.numTracks() )  // 2 = number of hreads ?
         { xmodem_status_mon = S_OK; return false; }
+     short int i,j,lbn; 
+// loop over multiple sectors
+     //for ( i=0 ; i < buffer_pages ; i++ ) {  // fill databuffer with buffer_pages sectors
+     // with interleaving
+      for ( i=0 ; i < buffer_pages ; i++ ) {  // fill databuffer with buffer_pages sectors
+         j = i << 1; // skew factor 2
+         j= (j>=numsec) ? ((j-numsec) | 0x01)  : j ;  //  interleaving, unevens after overflow
+         lbn=xmodem_sector+j; // don't touch xmodem_sector
+//#define mydebug
+#ifdef mydebug
+      Serial.print("j,lbn:");
+      Serial.print(j);
+      Serial.print(" ");
+      Serial.println(lbn);
+#endif
       
-      byte head   = 0;
-      byte track  = xmodem_sector / (numsec*2);
-      byte sector = xmodem_sector % (numsec*2);
-      if( sector >= numsec ) { head = 1; sector -= numsec; }
+         byte head   = 0; byte track  = lbn / (numsec*numheads);   // heads
+         byte sector = lbn % (numsec*numheads);   // heads
+         if( sector >= numsec ) { head = 1; sector -= numsec; } // should not happen * numhead=1
       
-      byte r = S_NOHEADER, retry = 5;
-      while( retry>0 && r!=S_OK ) { r = ArduinoFDC.readSector(track, head, sector+1, databuffer); retry--; }
-      if( r!=S_OK ) { xmodem_status_mon = r; return false; }
+         byte r = S_NOHEADER, retry = 5;
+      //while( retry>0 && r!=S_OK ) { r = ArduinoFDC.readSector(track, head, sector+1, databuffer); retry--; }
+#ifdef mydebug
+      Serial.print('T');
+      Serial.print(track);
+      Serial.print('S');
+      Serial.print(sector);
+      Serial.print('H');
+      Serial.println(head);
+#endif
+         //while( retry>0 && r!=S_OK ) { r = ArduinoFDC.readSector(track, head, sector+1, &databuffer[j*(page_size+p_offset)]) ; retry--; }
+         while( retry>0 && r!=S_OK ) { r = ArduinoFDC.readSector(track, head, sector+1, &databuffer[j*(page_size+l_offset)]) ; retry--; }
+#ifdef mydebug
+       //short page_size = 512; // make this static
+       //byte page_shift = 9;
+       //byte p_offset = 1; 
+       //byte l_offset = 3; // 515 = 512 + 3
+      Serial.print("ret:");
+      Serial.print(j);
+      Serial.print(" ");
+      Serial.println(r,HEX);
+#endif
+        // 513 bytes, record identifyer
+         if( r!=S_OK ) { xmodem_status_mon = r; return false; } // better: continue ?
       
+    }
+// 
+      xmodem_sector+= buffer_pages;
       xmodem_data_ptr = 0;
-      xmodem_sector++;
     }
       
   // "size" is always 128 and sector length is 512, i.e. a multiple of "size"
   // readSector returns data in databuffer[1..512]
-  memcpy(data, databuffer+1+xmodem_data_ptr, size);
+  //memcpy(data, databuffer+1+xmodem_data_ptr, size);
+     offset=(xmodem_data_ptr>>page_shift)*l_offset+p_offset;  // devide by 512, 3 bytes offset (515)
+
+#ifdef mydebug
+      Serial.print("O");
+      Serial.print(offset);
+      Serial.print(" ");
+      Serial.println(xmodem_data_ptr,HEX);
+#endif
+  //  ???? xmodem_data_ptr now ptr ??
+  memcpy(data, &databuffer[xmodem_data_ptr+offset], size);  // byte is unsigned
   xmodem_data_ptr += size;
   return true;
 }
@@ -649,17 +726,18 @@ bool xmodemHandlerReceiveMon(unsigned long no, char* data, int size)
   // writeSector expects data in databuffer[1..512]
   memcpy(databuffer+1+xmodem_data_ptr, data, size);
   xmodem_data_ptr += size;
-
+   //xmodem_data_ptr is tyoe word (16 bit)
   if( xmodem_data_ptr>=512 )
     {
       byte numsec = ArduinoFDC.numSectors();
-      if( xmodem_sector >= 2*numsec*ArduinoFDC.numTracks() )
+      byte numheads = ArduinoFDC.numHeads();
+      if( xmodem_sector >= numheads*numsec*ArduinoFDC.numTracks() )
         { xmodem_status_mon = S_OK; return false; }
       
       byte head   = 0;
-      byte track  = xmodem_sector / (numsec*2);
-      byte sector = xmodem_sector % (numsec*2);
-      if( sector >= numsec ) { head = 1; sector -= numsec; }
+      byte track  = xmodem_sector / (numsec*numheads);
+      byte sector = xmodem_sector % (numsec*numheads);
+      if( sector >= numsec ) { head = 1; sector -= numsec; }  // not possible for numherads=1
       
       byte r = S_NOHEADER, retry = 5;
       while( retry>0 && r!=S_OK ) { r = ArduinoFDC.writeSector(track, head, sector+1, databuffer, xmodem_verify); retry--; }
@@ -689,7 +767,7 @@ void monitor()
 
       if( cmd=='r' && n>=3 )
         {
-          track=a1; sector=a2; head= (n==3) ? 0 : a3;
+          track=a1; sector=a2; head= (n==3) ? a3 : 0 ;
           if( head>=0 && head<2 && track>=0 && track<ArduinoFDC.numTracks() && sector>=1 && sector<=ArduinoFDC.numSectors() )
             {
               Serial.print(F("Reading track ")); Serial.print(track); 
@@ -700,7 +778,13 @@ void monitor()
               byte status = ArduinoFDC.readSector(track, head, sector, databuffer);
               if( status==S_OK )
                 {
-                  dump_buffer(0, databuffer+1, 512);
+                  if (ArduinoFDC.moduLation() == MFM ) {
+                     dump_buffer(0, databuffer+1,  512 ); 
+                     }
+#ifdef WOZ
+                  else {    dump_buffer(0, &databuffer[86], 256  ); 
+                       }
+#endif
                   Serial.println();
                 }
               else
@@ -713,7 +797,8 @@ void monitor()
         {
           ArduinoFDC.motorOn();
           for(track=0; track<ArduinoFDC.numTracks(); track++)
-            for(head=0; head<2; head++)
+            //for(head=0; head<2; head++)
+            for(head=0; head<ArduinoFDC.numHeads(); head++)
               {
                 sector = 1;
                 for(byte i=0; i<ArduinoFDC.numSectors(); i++)
@@ -746,10 +831,43 @@ void monitor()
                   }
               }
         }
+#ifdef NIBBLES
+      else if( cmd=='n' && n>=2 ) // read nibble data
+        {
+          track=a1;  
+          int read_delay = 0 ;
+          head= (n>1) ? a2 : 0 ; 
+          if ( head > 5 ) { head = 0; read_delay = a2 ; } ;
+          byte mode= (n>2) ? a3 : 1;
+          byte maxtrack=ArduinoFDC.numTracks() ;
+              Serial.print(F("Reading nibble track ")); Serial.print(track); 
+              Serial.print(F(" side ")); Serial.println(head);
+              Serial.print(F(" mode ")); Serial.println(mode);
+              Serial.print(F(" maxtrack ")); Serial.println(maxtrack);
+              Serial.print(F(" delay ")); Serial.println(read_delay);
+              Serial.flush();
+             
+      // a3 = mode 1: nibble, 2:flux 
+          if( head>=0 && head<2 && track>=0 && track<ArduinoFDC.numTracks()  )
+            {
+
+              byte status = ArduinoFDC.readNibbles(track, head, mode, read_delay, databuffer);
+              if( status==S_OK )
+                {
+                  dump_buffer(0, databuffer, BUFF_SIZE); // all buffer
+                  Serial.println();
+                }
+              else
+                print_error(status);
+            }
+          else
+            Serial.println(F("Invalid specification"));
+          }
+#endif
       else if( cmd=='w' && n>=3 )
         {
-          track=a1; sector=a2; head= (n==3) ? 0 : a3;
-          if( head>=0 && head<2 && track>=0 && track<ArduinoFDC.numTracks() && sector>=1 && sector<=ArduinoFDC.numSectors() )
+          track=a1; sector=a2; head= (n==3) ? a3 : 0 ; // was 0 : a3  
+          if( head>=0 && head<ArduinoFDC.numHeads() && track>=0 && track<ArduinoFDC.numTracks() && sector>=1 && sector<=ArduinoFDC.numSectors() )
             {
               Serial.print(F("Writing and verifying track ")); Serial.print(track); 
               Serial.print(F(" sector ")); Serial.print(sector);
@@ -777,7 +895,8 @@ void monitor()
             {
               ArduinoFDC.motorOn();
               for(track=0; track<ArduinoFDC.numTracks(); track++)
-                for(head=0; head<2; head++)
+                //for(head=0; head<2; head++)
+                for(head=0; head<ArduinoFDC.numHeads(); head++)
                   {
                     sector = 1;
                     for(byte i=0; i<ArduinoFDC.numSectors(); i++)
@@ -905,7 +1024,9 @@ void monitor()
           xmodem_status_mon = S_OK;
           xmodem_sector = 0;
           xmodem_data_ptr = 0xFFFF;
-          
+
+          ArduinoFDC.motorOn();  // avoid cyclinh motor in readSector
+
           XModem modem(recvChar, sendData, xmodemHandlerSendMon);
           if( modem.transmit() && xmodem_status_mon==S_OK )
             Serial.println(F("\r\nSuccess!"));
@@ -918,7 +1039,16 @@ void monitor()
               Serial.println('\r');
               if( xmodem_status_mon!=S_OK ) print_error(xmodem_status_mon);
             }
+          ArduinoFDC.motorOff();  // avoid cyclinh motor in readSector
         }
+      else if( cmd=='g' && n>=3 )  // change geomtry
+        {
+          if  (n!=3)  a3 = 0; // 0: don't change
+            Serial.println(" new drive geometry for drive  ");
+          ArduinoFDC.patchGeometry(a1,a2,a3);
+
+        }
+
 #endif
 #ifdef USE_ARDUDOS
       else if (cmd=='x' )
@@ -937,11 +1067,15 @@ void monitor()
           Serial.println(F("B [n]    Fill buffer with 'n' or 00..FF if n not given"));
           Serial.println(F("m 0/1    Turn drive motor off/on"));
           Serial.println(F("s 0/1    Select drive A/B"));
-          Serial.println(F("t 0-4    Set type of current drive (5.25DD/5.25DDinHD/5.25HD/3.5DD/3.5HD)"));
+          Serial.println(F("t 0-6    Set type of current drive (5.25DD/5.25DDinHD/5.25HD/3.5DD/3.5HD/RX50/Apple][)"));
           Serial.println(F("f        Low-level format disk (tf)"));
+          Serial.println(F("g t,s[,ts]  Modify drive geometry (Maxtracks, Sectors, Track-Spacing"));
 #ifdef USE_XMODEM
           Serial.println(F("S        Read disk image and send via XModem"));
           Serial.println(F("R [0/1]  Receive disk image via XModem and write to disk (without/with verify)"));
+#endif
+#ifdef NIBBLES
+          Serial.println(F("n t,d,m  dump nibbles, d: ms delay, m: mode (2: flux) \n"));
 #endif
 #ifdef USE_ARDUDOS
           Serial.println(F("x        Exit monitor\n"));
@@ -955,7 +1089,6 @@ void monitor()
 
 #endif
 
-
 // -------------------------------------------------------------------------------------------------
 // Main functions
 // -------------------------------------------------------------------------------------------------
@@ -963,8 +1096,13 @@ void monitor()
 
 void setup() 
 {
-  Serial.begin(115200);
+  //Serial.begin(115200);
+  Serial.begin(230400); // max supported by mincom on OSX
+#ifdef WOZ
+  ArduinoFDC.begin(ArduinoFDCClass::DT_5_WOZ, ArduinoFDCClass::DT_3_HD);
+#else
   ArduinoFDC.begin(ArduinoFDCClass::DT_3_HD, ArduinoFDCClass::DT_3_HD);
+#endif
 
   // must save flash space if all three of ARDUDOS/MONITOR/XMODEM are enabled on UNO
 #if !defined(USE_ARDUDOS) || !defined(USE_MONITOR) || !defined(USE_XMODEM) || defined(__AVR_ATmega2560__)
