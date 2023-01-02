@@ -225,9 +225,8 @@ Writes data to a sector on the floppy disk. Always writes a full sector (512 byt
 * The "sector" paramter must be in range 1..numSectors()
 * The "buffer" parameter must be a pointer to a byte array of size (at least) 516 bytes.
 * If the "verify" parameter is *true*, the data written will be read back and compared to what was written.
-If a difference is detected then the function will return *false*.
-If the "verify" parameter is *false* then no verification is done. The function may still return *false*
-if the proper sector location on disk can not be found before writing.
+If a difference is detected then the function will return error code S_VERIFY.
+If the "verify" parameter is *false* then no verification is done. 
 
 The function returns 0 if writing succeeded. Otherwise an error code is returned
 (see [Troubleshooting](#troubleshooting) section below)
