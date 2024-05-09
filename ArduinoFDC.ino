@@ -284,6 +284,12 @@ void arduDOS()
       Serial.print(F(":>"));
       char *cmd = read_user_cmd(tempbuffer, TEMPBUFFER_SIZE);
 
+      if( ArduinoFDC.diskChanged() )
+        {
+          Serial.println("Disk change detected!");
+          f_mount(&FatFs, "0:", 0);
+        }
+
       if( strcmp_PF(cmd, PSTR("a:"))==0 || strcmp_PF(cmd, PSTR("b:"))==0 )
         {
           byte drive = cmd[0]-'a';
@@ -713,7 +719,7 @@ void monitor()
         {
           ArduinoFDC.motorOn();
           for(track=0; track<ArduinoFDC.numTracks(); track++)
-            for(head=0; head<2; head++)
+            for(head=0; head<ArduinoFDC.numHeads(); head++)
               {
                 sector = 1;
                 for(byte i=0; i<ArduinoFDC.numSectors(); i++)

@@ -37,6 +37,7 @@
 #define PIN_DENSITY   13  // can be changed to different pin or commented out
 #define PIN_MOTORB    A0  // can be changed to different pin or commented out (together with PIN_SELECTB)
 #define PIN_SELECTB   A1  // can be changed to different pin or commented out (together with PIN_MOTORB)
+#define PIN_DSKCHG    A2  // can be changed to different pin or commented out
 
 
 asm ("   .equ TIFR,    0x16\n"  // timer 1 flag register
@@ -99,6 +100,7 @@ asm ("   .equ TIFR,    0x16\n"  // timer 1 flag register
 #endif
 #define PIN_MOTORB    A0  // can be changed to different pin or commented out (together with PIN_SELECTB)
 #define PIN_SELECTB   A1  // can be changed to different pin or commented out (together with PIN_MOTORB)
+#define PIN_DSKCHG    A2  // can be changed to different pin or commented out
 
 
 asm ("   .equ TIFR,    0x16\n"  // timer 1 flag register
@@ -155,6 +157,7 @@ asm ("   .equ TIFR,    0x16\n"  // timer 1 flag register
 #define PIN_DENSITY   42  // can be changed to different pin or commented out
 #define PIN_MOTORB    41  // can be changed to different pin or commented out (together with PIN_SELECTB)
 #define PIN_SELECTB   40  // can be changed to different pin or commented out (together with PIN_MOTORB)
+#define PIN_DSKCHG    39  // can be changed to different pin or commented out
 
 
 asm ("   .equ TIFR,    0x1A\n"  // timer 5 flag register
@@ -206,6 +209,7 @@ asm ("   .equ TIFR,    0x1A\n"  // timer 5 flag register
 
 struct DriveGeometryStruct
 {
+  byte numHeads;
   byte numTracks;
   byte numSectors;
   byte dataGap;
@@ -213,13 +217,13 @@ struct DriveGeometryStruct
 };
 
 
-static struct DriveGeometryStruct geometry[5] =
+static struct DriveGeometryStruct geometry[7] =
   {
-    {40,  9,  80, 1},  // 5.25" DD (360 KB)
-    {40,  9,  80, 2},  // 5.25" DD disk in HD drive (360 KB)
-    {80, 15,  85, 1},  // 5.25" HD (1.2 MB)
-    {80,  9,  80, 1},  // 3.5"  DD (720 KB)
-    {80, 18, 100, 1}   // 3.5"  HD (1.44 MB)
+    {2, 40,  9,  80, 1},  // 5.25" DD (360 KB)
+    {2, 40,  9,  80, 2},  // 5.25" DD disk in HD drive (360 KB)
+    {2, 80, 15,  85, 1},  // 5.25" HD (1.2 MB)
+    {2, 80,  9,  80, 1},  // 3.5"  DD (720 KB)
+    {2, 80, 18, 100, 1}   // 3.5"  HD (1.44 MB)
   };
 
 
@@ -690,7 +694,7 @@ static void write_data(byte bitlen, byte *buffer, unsigned int n)
 
 
 
-static byte format_track(byte *buffer, byte driveType, byte bitlen, byte track, byte side)
+static byte format_track(byte *buffer, byte driveType, byte bitlen, byte track, byte side, byte interleave)
 {
   // 3.5" DD disk:
   //   writing 95 + 1 + 65 + (7 + 37 + 515 + 69) * 8 + (7 + 37 + 515) bytes
@@ -709,18 +713,32 @@ static byte format_track(byte *buffer, byte driveType, byte bitlen, byte track, 
   byte datagaplen = geometry[driveType].dataGap;
 
   // pre-compute ID records
-  byte *ptr = buffer;
-  for(i=0; i<numsec; i++)
+  memset(buffer, 0, 8*numsec);
+  i = 0;
+  byte n = 0;
+  while( n<numsec )
     {
-      *ptr++ = 0xFE;      // ID mark
-      *ptr++ = track;     // cylinder number
-      *ptr++ = side;      // side number
-      *ptr++ = i+1;       // sector number
-      *ptr++ = 2;         // sector length
-      uint16_t crc = calc_crc(ptr-5, 5);
-      *ptr++ = crc / 256; // CRC
-      *ptr++ = crc & 255; // CRC
-      *ptr++ = 0x4E;      // first byte of post-data gap
+      uint16_t bi = i*8;
+
+      if( buffer[bi+3]!=0 )
+        i++;
+      else
+        {
+          buffer[bi+0] = 0xFE;      // ID mark
+          buffer[bi+1] = track;     // cylinder number
+          buffer[bi+2] = side;      // side number
+          buffer[bi+3] = n+1;       // sector number
+          buffer[bi+4] = 2;         // sector length
+          uint16_t crc = calc_crc(buffer+bi, 5);
+          buffer[bi+5] = crc / 256; // CRC
+          buffer[bi+6] = crc & 255; // CRC
+          buffer[bi+7] = 0x4E;      // first byte of post-data gap
+
+          i += interleave;
+          n++;
+        }
+
+      if( i>=numsec ) i -= numsec;
     }
 
   noInterrupts();
@@ -1295,6 +1313,9 @@ void ArduinoFDCClass::begin(enum DriveType driveAType, enum DriveType driveBType
 #if defined(PIN_WRITEPROT)
   pinMode(PIN_WRITEPROT, INPUT_PULLUP);
 #endif
+#if defined(PIN_DSKCHG)
+  pinMode(PIN_DSKCHG,    INPUT_PULLUP);
+#endif
 
 #if defined(PIN_DENSITY)
   digitalWrite(PIN_DENSITY, LOW);
@@ -1328,9 +1349,15 @@ void ArduinoFDCClass::end()
 
 void ArduinoFDCClass::setDriveType(enum DriveType type)
 {
-  if( type != m_driveType[m_currentDrive] )
+  ArduinoFDCClass::setDriveType(m_currentDrive, type);
+}
+
+
+void ArduinoFDCClass::setDriveType(byte drive, enum DriveType type)
+{
+  if( type != m_driveType[drive] )
     {
-      m_driveType[m_currentDrive] = type;
+      m_driveType[drive] = type;
 
       // by default: 3.5"     drives do not use DENSITY pin (disconnect)
       //             5.25  DD drives do not use DENSITY pin (disconnect)
@@ -1341,14 +1368,20 @@ void ArduinoFDCClass::setDriveType(enum DriveType type)
         setDensityPinMode(DP_DISCONNECT);
       
       // bit length will be determined at first read/write operation
-      m_bitLength[m_currentDrive] = 0;
+      m_bitLength[drive] = 0;
     }
 }
 
 
 enum ArduinoFDCClass::DriveType ArduinoFDCClass::getDriveType() const
 {
-  return m_driveType[m_currentDrive];
+  return getDriveType(m_currentDrive);
+}
+
+
+enum ArduinoFDCClass::DriveType ArduinoFDCClass::getDriveType(byte drive) const
+{
+  return m_driveType[drive];
 }
 
 
@@ -1607,7 +1640,7 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
 }
 
 
-byte ArduinoFDCClass::formatDisk(byte *buffer, byte fromTrack, byte toTrack)
+byte ArduinoFDCClass::formatDisk(byte *buffer, byte fromTrack, byte toTrack, byte interleave)
 {
   byte res = S_OK;
   byte driveType = m_driveType[m_currentDrive];
@@ -1651,9 +1684,12 @@ byte ArduinoFDCClass::formatDisk(byte *buffer, byte fromTrack, byte toTrack)
       for(byte track=fromTrack; track<=toTrack; track++)
         {
           digitalWriteOC(PIN_SIDE, HIGH);
-          res = format_track(buffer, driveType, bitLength, track, 0); if( res!=S_OK ) break;
-          digitalWriteOC(PIN_SIDE, LOW);
-          res = format_track(buffer, driveType, bitLength, track, 1); if( res!=S_OK ) break;
+          res = format_track(buffer, driveType, bitLength, track, 0, interleave); if( res!=S_OK ) break;
+          if( geometry[driveType].numHeads == 2 )
+            {
+              digitalWriteOC(PIN_SIDE, LOW);
+              res = format_track(buffer, driveType, bitLength, track, 1, interleave); if( res!=S_OK ) break;
+            }
           if( track+1<=toTrack ) step_tracks(driveType, 1);
         }
     }
@@ -1761,6 +1797,30 @@ bool ArduinoFDCClass::haveDisk() const
 }
 
 
+bool ArduinoFDCClass::diskChanged() const
+{
+#if defined(PIN_DSKCHG)
+  driveSelect(LOW);
+  if( digitalRead(PIN_DSKCHG)==LOW )
+    {
+      // move drive head (clears "disk change" flag)
+      byte driveType = m_driveType[m_currentDrive];
+      if( digitalRead(PIN_TRACK0) )
+        step_tracks(driveType, -1);
+      else
+        step_tracks(driveType,  1);
+
+      driveSelect(HIGH);
+      return true;
+    }
+
+  driveSelect(HIGH);
+#endif
+
+  return false;
+}
+
+
 bool ArduinoFDCClass::isWriteProtected() const
 {
   bool res = false;
@@ -1790,4 +1850,10 @@ byte ArduinoFDCClass::numTracks() const
 byte ArduinoFDCClass::numSectors() const
 {
   return geometry[m_driveType[m_currentDrive]].numSectors;
+}
+
+
+byte ArduinoFDCClass::numHeads() const
+{
+  return geometry[m_driveType[m_currentDrive]].numHeads;
 }

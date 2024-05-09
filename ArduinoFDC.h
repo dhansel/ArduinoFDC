@@ -68,15 +68,23 @@ class ArduinoFDCClass
 
   // set the drive type for the currently selected drive
   void setDriveType(enum DriveType type);
+  void setDriveType(byte drive, enum DriveType type);
 
   // get the type of the currently selected drive
   enum DriveType getDriveType() const;
+  enum DriveType getDriveType(byte drive) const;
 
   // returns true if a disk is detected in the drive
   bool haveDisk() const;
   
+  // returns true if a disk change was detected since the last call to diskChanged()
+  bool diskChanged() const;
+
   // returns true if the disk is write protected
   bool isWriteProtected() const;
+
+  // get number of heads for the currently selected drive (1 or 2)
+  byte numHeads() const;
 
   // get number of tracks for the currently selected drive
   byte numTracks() const;
@@ -110,7 +118,7 @@ class ArduinoFDCClass
   // See error codes above for possible return values
   // IMPORTANT: No DOS file system is initialized, i.e. DOS or Windows
   //            will NOT recognize this as a valid disk
-  byte formatDisk(byte *buffer, byte fromTrack=0, byte toTrack=255);
+  byte formatDisk(byte *buffer, byte fromTrack=0, byte toTrack=255, byte interleave=1);
 
   // Turn the disk drive motor on. The readSector/writeSector/formatDisk 
   // functions will turn on the motor automatically if it is not running 
