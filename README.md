@@ -385,6 +385,33 @@ to pins on the Arduino UNO.
 8 | S_VERIFY    | When reading back data that was just written, the data did not match | - pins WRITEGATE (10) or WRITEDATA (9) not properly connected<br/>- disk is write protected and WRITEPROTECT (12) pin is not connected <br/> - bad disk
 9 | S_READONLY | Attempting to write to a write-protected disk | - disk is write protected
 
+## ArduinoFDC shields
+
+For a more permanent connection between the disk drive and the Arduino, I made shields for the Arduino UNO
+and Arduino Mega:
+
+![ArduinoFDC Setup](images/Shields.jpg)
+
+The only components to populate are two resistors (R1 and R2, both 4.7kOhm) and the 
+[IDC34 connector](https://www.digikey.com/en/products/detail/sullins-connector-solutions/SBH11-PBPC-D17-ST-BK/1990067)
+for the disk drive. 
+
+These shields use the default pins as shown in the wiring table above. As is, all pins including
+optional ones are wired up. If you need some optional pins for other functions then simply cut
+the small trace between the two pads next to the pin description:
+
+![ArduinoFDC Setup](images/CutTrace.jpg)
+
+That will disconnect the signal from the disk drive connector and you can connect it to something
+else. If you cut the traces and install pin headers in the adjacent holes then you can use jumpers
+to easily connect or disconnect the signals.
+
+To get a shield, simply download the Gerber file from this repository and upload it to a PCB 
+manufacturing site such as JLCPCB or PCBWay:
+  - Gerber file for Arduino UNO can be downloaded [here](https://github.com/dhansel/ArduinoFDC/raw/main/ArduinoFDCShieldGerber.zip)
+  - Gerber file for Arduino Mega can be downloaded [here](https://github.com/dhansel/ArduinoFDC/raw/main/ArduinoFDCMegaShieldGerber.zip)
+
+
 ## Acknowledgements
 
 The ArduDOS functionality would not have been possible without ChaN's brilliant [FatFS](http://elm-chan.org/fsw/ff/00index_e.html) library.
