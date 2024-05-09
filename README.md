@@ -392,7 +392,7 @@ and Arduino Mega:
 
 ![ArduinoFDC Setup](images/Shields.jpg)
 
-The only components to populate are two resistors (R1 and R2, both 4.7kOhm) and the 
+The only components to populate are two resistors (R1 and R2, both 1 kOhm) and the 
 [IDC34 connector](https://www.digikey.com/en/products/detail/sullins-connector-solutions/SBH11-PBPC-D17-ST-BK/1990067)
 for the disk drive. 
 
@@ -400,7 +400,7 @@ These shields use the default pins as shown in the wiring table above. As is, al
 optional ones are wired up. If you need some optional pins for other functions then simply cut
 the small trace between the two pads next to the pin description:
 
-![ArduinoFDC Setup](images/CutTrace.jpg)
+![Traces](images/CutTrace.jpg)
 
 That will disconnect the signal from the disk drive connector and you can connect it to something
 else. If you cut the traces and install pin headers in the adjacent holes then you can use jumpers
@@ -411,6 +411,9 @@ manufacturing site such as JLCPCB or PCBWay:
   - Gerber file for Arduino UNO can be downloaded [here](https://github.com/dhansel/ArduinoFDC/raw/main/ArduinoFDCShieldGerber.zip)
   - Gerber file for Arduino Mega can be downloaded [here](https://github.com/dhansel/ArduinoFDC/raw/main/ArduinoFDCMegaShieldGerber.zip)
 
+Here is a picture of an assembled shield attached to an Arduino UNO:
+
+![Assembled ArduinoFDC Shield](images/ShieldAssembled.jpg)
 
 ## Acknowledgements
 
