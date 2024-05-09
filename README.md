@@ -189,6 +189,9 @@ Returns true if the disk is write protected. If no disk is in the drive then
 the result may be either true or false. If the WRITE PROTECT signal is not connected
 then the result is always false.
 
+#### `bool ArduinoFDC.diskChanged()`
+Returns true if a disk change was detected since the last call to diskChanged().
+
 #### `void ArduinoFDC.motorOn()`
 Turns the disk drive motor on. 
 
@@ -233,13 +236,16 @@ The function returns 0 if writing succeeded. Otherwise an error code is returned
 
 **IMPORTANT:** The sector data to be written must be in buffer[1..512] (**NOT** buffer[0..511])
 
-#### `bool ArduinoFDC.formatDisk(byte *buffer, byte from_track=0, byte to_track=255)`
+#### `bool ArduinoFDC.formatDisk(byte *buffer, byte from_track=0, byte to_track=255, byte interlave = 1)`
 Formats a floppy disk according to the format specified by the "setDriveType()" function.
 A subset of tracks can be formatted by specifying the from_track and to_track parameters.
 
 A buffer of size at least 144 bytes is needed to store temporary data during formatting.
 The buffer is passed in as an argument to allow re-using other buffers in your sketch.
 If you do not have a buffer to be re-used, just declare `byte buffer[144]` before calling formatDisk().
+
+The interleave argument specifies the disk interleave factor, i.e. interleave=7 specifies
+an [interleave factor](https://en.wikipedia.org/wiki/Interleaving_(disk_storage)) of 1:7 (default is 1:1).
 
 This function does **not** set up any file system on the disk. It only sets up the 
 low-level sector structure that allows reading and writing of sectors (and fills all
