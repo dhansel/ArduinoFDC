@@ -21,6 +21,9 @@ and 3.5" HD (1.44MB) disks.
 
 ## Wiring
 
+If you don't want to wire your disk drive up manually you can use a shield
+for Arduino Uno or Mega. See the [ArduinoFDC Shields](#arduinofdc-shields) section below.
+
 The table below shows how to wire the Arduino pins to the 34-pin IDC
 connector on the floppy drive cable.
 
