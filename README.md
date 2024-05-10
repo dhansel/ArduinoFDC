@@ -21,8 +21,9 @@ and 3.5" HD (1.44MB) disks.
 
 ## Wiring
 
-If you don't want to wire your disk drive up manually you can use a shield
-for Arduino Uno or Mega. See the [ArduinoFDC Shields](#arduinofdc-shields) section below.
+If you don't want to wire your disk drive up yourself then you can use a shield
+for Arduino Uno or Mega. See the [ArduinoFDC shields](#arduinofdc-shields) section below.
+The shield plugs into the Arduino and provides a standard 34-pin floppy disk connector.
 
 The table below shows how to wire the Arduino pins to the 34-pin IDC
 connector on the floppy drive cable.
@@ -240,7 +241,7 @@ The function returns 0 if writing succeeded. Otherwise an error code is returned
 
 **IMPORTANT:** The sector data to be written must be in buffer[1..512] (**NOT** buffer[0..511])
 
-#### `bool ArduinoFDC.formatDisk(byte *buffer, byte from_track=0, byte to_track=255, byte interlave = 1)`
+#### `bool ArduinoFDC.formatDisk(byte *buffer, byte from_track=0, byte to_track=255, byte interleave = 1)`
 Formats a floppy disk according to the format specified by the "setDriveType()" function.
 A subset of tracks can be formatted by specifying the from_track and to_track parameters.
 
