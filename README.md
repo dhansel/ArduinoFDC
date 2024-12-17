@@ -420,7 +420,9 @@ to easily connect or disconnect the signals.
 To get a shield, simply download the Gerber file from this repository and upload it to a PCB 
 manufacturing site such as JLCPCB or PCBWay:
   - Gerber file for Arduino UNO can be downloaded [here](https://github.com/dhansel/ArduinoFDC/raw/main/ArduinoFDCShieldGerber.zip)
+    (schematics are [here](https://github.com/dhansel/ArduinoFDC/raw/main/ArduinoFDCShieldSchematic.pdf))
   - Gerber file for Arduino Mega can be downloaded [here](https://github.com/dhansel/ArduinoFDC/raw/main/ArduinoFDCMegaShieldGerber.zip)
+    (schematics are [here](https://github.com/dhansel/ArduinoFDC/raw/main/ArduinoFDCMegaShieldSchematic.pdf))
 
 Here is a picture of an assembled shield attached to an Arduino UNO:
 
