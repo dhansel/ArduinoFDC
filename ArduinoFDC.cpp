@@ -206,6 +206,15 @@ asm ("   .equ TIFR,    0x1A\n"  // timer 5 flag register
 #error "ArduinoFDC library requires 16MHz clock speed"
 #endif
 
+//track-to-track head seek time 
+#define T2T_TIME 6   //was 10
+
+//head stabilization time after seek
+#define HEAD_TIME 30 //was 100
+
+//Uncomment to ignore side mark in sector header,
+// because some disk systems have faulty value here 
+#define IGNORE_SIDE_MARK 
 
 struct DriveGeometryStruct
 {
@@ -214,16 +223,17 @@ struct DriveGeometryStruct
   byte numSectors;
   byte dataGap;
   byte trackSpacing;
+  word secSize;
 };
 
 
-static struct DriveGeometryStruct geometry[7] =
+static struct DriveGeometryStruct geometry[5] =
   {
-    {2, 40,  9,  80, 1},  // 5.25" DD (360 KB)
-    {2, 40,  9,  80, 2},  // 5.25" DD disk in HD drive (360 KB)
-    {2, 80, 15,  85, 1},  // 5.25" HD (1.2 MB)
-    {2, 80,  9,  80, 1},  // 3.5"  DD (720 KB)
-    {2, 80, 18, 100, 1}   // 3.5"  HD (1.44 MB)
+    {2, 40,  9,  80, 1, 512},  // 5.25" DD (360 KB)
+    {2, 40,  9,  80, 2, 512},  // 5.25" DD disk in HD drive (360 KB)
+    {2, 80, 15,  85, 1, 512},  // 5.25" HD (1.2 MB)
+    {2, 80,  9,  80, 1, 512},  // 3.5"  DD (720 KB)
+    {2, 80, 18, 100, 1, 512}  // 3.5"  HD (1.44 MB)
   };
 
 
@@ -711,6 +721,8 @@ static byte format_track(byte *buffer, byte driveType, byte bitlen, byte track, 
 
   byte numsec     = geometry[driveType].numSectors;
   byte datagaplen = geometry[driveType].dataGap;
+  byte secLen     = geometry[driveType].secSize;
+  byte bytesHi    = secLen / 256; //working for sectors 128, 256 and 512 only!
 
   // pre-compute ID records
   memset(buffer, 0, 8*numsec);
@@ -728,7 +740,7 @@ static byte format_track(byte *buffer, byte driveType, byte bitlen, byte track, 
           buffer[bi+1] = track;     // cylinder number
           buffer[bi+2] = side;      // side number
           buffer[bi+3] = n+1;       // sector number
-          buffer[bi+4] = 2;         // sector length
+          buffer[bi+4] = bytesHi;   // sector length
           uint16_t crc = calc_crc(buffer+bi, 5);
           buffer[bi+5] = crc / 256; // CRC
           buffer[bi+6] = crc & 255; // CRC
@@ -985,9 +997,12 @@ static byte format_track(byte *buffer, byte driveType, byte bitlen, byte track, 
      // 0101010101000101 0101010100010100 0101010100010100 ...
      //  S S S S S   L S  S S S S   L S    L S S S   L S   ...
      // => SSSSLS LSSSLS
-     "          ldi   r26, 0\n"            // write 2*256+0 = 512 bytes
-     "          ldi   r27, 2\n"
-     "          WRTPS\n"                   // write short pulse
+     "          ldi r26, 0\n"              // when `bytesHi` > 0, 
+     "          mov r27, %3\n"             // sets the sector size for 256 and 512 (or multiples of 256)
+     "          brne beginSec\n"
+     "          ldi r26, 128\n"            // when `bytesHi` = 0
+     "          ldi r27, 0\n"              // assumes a sector size of 128 bytes
+     "beginSec: WRTPS\n"                   // write short pulse
      "          rjmp dskip\n"
      "dloop:    WRTPL\n"                   // write long  pulse
      "dskip:    WRTPS\n"                   // write short pulse
@@ -1095,7 +1110,7 @@ static byte format_track(byte *buffer, byte driveType, byte bitlen, byte track, 
      "ftend:\n"
 
      :                                            // no outputs
-     : "r"(bitlen), "r"(numsec), "r"(datagaplen), "z"(buffer)      // inputs  (z=r30/r31)
+     : "r"(bitlen), "r"(numsec), "r"(datagaplen), "r"(bytesHi), "z"(buffer)      // inputs  (z=r30/r31)
      : "r16", "r17", "r18", "r19", "r20", "r21", "r26", "r27"); // clobbers
 
   // set WRITEGATE back to input (releases it HIGH)
@@ -1135,7 +1150,11 @@ static byte wait_header(byte bitlen, byte track, byte side, byte sector)
         {
           // make sure this is an ID record and check whether it contains the
           // expected track/side/sector information and the CRC is ok
-          if( header[0]==0xFE && (track==0xFF || track==header[1]) && side==header[2] && sector==header[3] )
+          if( header[0]==0xFE && (track==0xFF || track==header[1]) 
+#ifndef IGNORE_SIDE_MARK
+              && side==header[2]
+#endif        
+              && sector==header[3] )
             {
               if( calc_crc(header, 5) == 256u*header[5]+header[6] )
                 return S_OK;
@@ -1175,7 +1194,7 @@ static void step_track()
   digitalWriteOC(PIN_STEP, LOW);
   delay(1);
   digitalWriteOC(PIN_STEP, HIGH);
-  delay(10);
+  delay(T2T_TIME);
 }
 
 
@@ -1208,7 +1227,7 @@ static void step_tracks(byte driveType, int tracks)
   tracks = abs(tracks);
   tracks = tracks * geometry[driveType].trackSpacing;
   while( tracks-->0 ) step_track();
-  delay(100); 
+  delay(HEAD_TIME); 
 }
 
 
@@ -1484,6 +1503,7 @@ byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
     return S_NOTINIT;
   else if( track>=geometry[driveType].numTracks || sector<1 || sector>geometry[driveType].numSectors || side>1 )
     return S_NOHEADER;
+  word secLen = geometry[driveType].secSize;
 
   // if motor is not running then turn it on now
   bool turnMotorOff = false;
@@ -1518,7 +1538,7 @@ byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
       if( res==S_OK )
         {
           // wait for data sync mark and read data
-          if( read_data(bitLength, buffer, 515, false)==S_OK )
+          if( read_data(bitLength, buffer, secLen+3, false)==S_OK )
             {
               if( buffer[0]!=0xFB )
                 { 
@@ -1529,10 +1549,10 @@ byte ArduinoFDCClass::readSector(byte track, byte side, byte sector, byte *buffe
 #endif
                   res = S_INVALIDID;
                 }
-              else if( calc_crc(buffer, 513) != 256u*buffer[513]+buffer[514] )
+              else if( calc_crc(buffer, secLen+1) != 256u*buffer[secLen+1]+buffer[secLen+2] )
                 { 
 #ifdef DEBUG
-                  Serial.print(F("Data CRC error. Found: ")); Serial.print(256u*buffer[513]+buffer[514], HEX); Serial.print(", expected: "); Serial.println(calc_crc(buffer, 513), HEX);
+                  Serial.print(F("Data CRC error. Found: ")); Serial.print(256u*buffer[secLen+1]+buffer[secLen+2], HEX); Serial.print(", expected: "); Serial.println(calc_crc(buffer, secLen+1), HEX);
 #endif
                   res = S_CRC; 
                 }
@@ -1566,6 +1586,7 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
     return S_NOTINIT;
   else if( track>=geometry[driveType].numTracks || sector<1 || sector>geometry[driveType].numSectors || side>1 )
     return S_NOHEADER;
+  word secLen = geometry[driveType].secSize;
 
   // if motor is not running then turn it on now
   bool turnMotorOff = false;
@@ -1595,10 +1616,10 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
     {
       // calculate CRC for the sector data
       buffer[0]   = 0xFB; // "data" id
-      uint16_t crc = calc_crc(buffer, 513);
-      buffer[513] = crc/256;
-      buffer[514] = crc&255;
-      buffer[515] = 0x4E; // first byte of post-data gap
+      uint16_t crc = calc_crc(buffer, secLen+1);
+      buffer[secLen+1] = crc/256;
+      buffer[secLen+2] = crc&255;
+      buffer[secLen+3] = 0x4E; // first byte of post-data gap
   
       // writing data is time sensitive so we can't have interrupts
       noInterrupts();
@@ -1610,7 +1631,7 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
       if( res==S_OK )
         {
           // write the sector data
-          write_data(bitLength, buffer, 516);
+          write_data(bitLength, buffer, secLen+4);
           
           // if we are supposed to verify the data then do so now
           if( verify )
@@ -1619,7 +1640,7 @@ byte ArduinoFDCClass::writeSector(byte track, byte side, byte sector, byte *buff
               res = wait_header(bitLength, track, side, sector);
               
               // wait for data sync mark and compare the data
-              if( res==S_OK ) res = read_data(bitLength, buffer, 515, true);
+              if( res==S_OK ) res = read_data(bitLength, buffer, secLen+3, true);
             }
         }
 
@@ -1856,4 +1877,21 @@ byte ArduinoFDCClass::numSectors() const
 byte ArduinoFDCClass::numHeads() const
 {
   return geometry[m_driveType[m_currentDrive]].numHeads;
+}
+
+
+word ArduinoFDCClass::secSize() const
+{
+  return geometry[m_driveType[m_currentDrive]].secSize;
+}
+
+
+void ArduinoFDCClass::patchGeometry(byte heads, byte tracks, byte trackSpacing, byte numSector, word sectorSize)
+{
+  if (heads != 0) geometry[m_driveType[m_currentDrive]].numHeads = heads;
+  if (tracks != 0) geometry[m_driveType[m_currentDrive]].numTracks = tracks;
+  if (trackSpacing != 0) geometry[m_driveType[m_currentDrive]].trackSpacing = trackSpacing;
+  if (numSector != 0) geometry[m_driveType[m_currentDrive]].numSectors = numSector;
+  if (sectorSize != 0) geometry[m_driveType[m_currentDrive]].secSize = sectorSize;
+  return;
 }

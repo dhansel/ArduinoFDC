@@ -43,7 +43,7 @@ class ArduinoFDCClass
     DT_5_DDonHD, // 5.25" double density disk in high density drive (360 KB)
     DT_5_HD,     // 5.25" high density (1.2 MB)
     DT_3_DD,     // 3.5"  double density (720 KB)
-    DT_3_HD      // 3.5"  high density (1.44 MB)
+    DT_3_HD     // 3.5"  high density (1.44 MB)
   };
 
   enum DensityPinMode {
@@ -91,6 +91,12 @@ class ArduinoFDCClass
 
   // get number of sectors for the currently selected drive
   byte numSectors() const;
+
+  // get sector size for the currently selected drive
+  word secSize() const;
+
+  // change drive parametrs on the fly. 0 value - left unchanged
+  void patchGeometry(byte heads, byte tracks, byte trackSpacing, byte numSector, word sectorSize);
 
   // set the density pin mode for the currently selected drive
   void setDensityPinMode(enum DensityPinMode mode);
